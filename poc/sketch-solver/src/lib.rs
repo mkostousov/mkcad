@@ -3,9 +3,14 @@
 //! Core logic is pure computation: no file system, threads or OS calls, so the crate builds for
 //! `wasm32-unknown-unknown`. Transcendental functions come from `libm` for cross-platform determinism.
 
+// Index loops mirror the linear-algebra notation (L_ij, y_j) and stay readable that way.
+#![allow(clippy::needless_range_loop)]
+
 pub mod diag;
 pub mod equations;
+pub mod linalg;
 pub mod model;
+pub mod solver;
 
 pub use diag::{Code, Diagnostic, Severity, Suggestion};
 pub use model::*;
