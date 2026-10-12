@@ -348,6 +348,8 @@ pub enum Owner {
     Constraint(ConstraintId),
     /// Built-in arc equations (start/end on the arc's circle).
     Internal(CurveId),
+    /// Edit-context preference (minimal-change policy), by priority; never reported as a conflict.
+    Soft(usize),
 }
 
 #[derive(Clone, Debug, PartialEq)]
