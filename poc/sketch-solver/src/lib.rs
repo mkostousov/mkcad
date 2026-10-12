@@ -7,13 +7,16 @@
 #![allow(clippy::needless_range_loop)]
 
 pub mod diag;
+pub mod doc;
 pub mod equations;
 pub mod linalg;
 pub mod model;
 pub mod solver;
 
 pub use diag::{Code, Diagnostic, Severity, Suggestion};
+pub use doc::{AnyId, Applied, OpResult, PointRef, Rejection, SketchDoc, SketchOp};
 pub use model::*;
+pub use solver::{EditContext, Goal, SolveOptions, SolveResult, Status, solve};
 
 #[cfg(test)]
 mod tests {
