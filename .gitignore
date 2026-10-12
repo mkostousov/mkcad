@@ -1,0 +1,13 @@
+# Rust
+target/
+**/*.rs.bk
+
+# Study harness: local venv, VM state and bulky evidence (screenshots, sessions, raw results) stay local
+vmharness/.venv/
+vmharness/.state.json
+vmharness/results/
+vmharness/shots/
+vmharness/sessions/
+vmharness/inventory/
+__pycache__/
+.resume

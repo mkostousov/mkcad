@@ -1,0 +1,13 @@
+{
+	"autodeskProduct": "Fusion",
+	"type": "addin",
+	"id": "6c1f2e7a-3b9d-4f0e-9a51-0d6c4b2e8f13",
+	"author": "mk_cad",
+	"description": {
+		"": "Runs job scripts from C:\\mkprobe\\in for the clean-room study harness."
+	},
+	"version": "1.0.0",
+	"runOnStartup": true,
+	"supportedOS": "windows",
+	"editEnabled": true
+}
