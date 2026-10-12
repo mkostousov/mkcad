@@ -4,6 +4,7 @@
 //! `wasm32-unknown-unknown`. Transcendental functions come from `libm` for cross-platform determinism.
 
 pub mod diag;
+pub mod equations;
 pub mod model;
 
 pub use diag::{Code, Diagnostic, Severity, Suggestion};
