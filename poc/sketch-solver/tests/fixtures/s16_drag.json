@@ -1,0 +1,29 @@
+{
+  "id": "S-16", "title": "Drag: free end moves, merged origin stays (F231); fully constrained point -> MOVE.CONSTRAINED, no change",
+  "ref": ["F19", "F231", "S-16"],
+  "cases": [
+    {"name": "free end of an under-constrained line", "steps": [
+      {"op": "point", "name": "O", "at": [0, 0]},
+      {"op": "constrain", "c": {"type": "fix", "entity": "O"}},
+      {"op": "line", "name": "L", "a": "O", "b": [30, 5]},
+      {"op": "drag", "p": "L.b", "to": [45, 5], "expect": {"unmoved": ["O"], "points": {"L.b": [45, 5]}}},
+      {"op": "check", "expect": {"dof": 2, "entity_dof": {"L": 2}}}
+    ]},
+    {"name": "dragging along remaining freedom only", "steps": [
+      {"op": "point", "name": "O", "at": [0, 0]},
+      {"op": "constrain", "c": {"type": "fix", "entity": "O"}},
+      {"op": "line", "name": "L", "a": "O", "b": [30, 5]},
+      {"op": "constrain", "c": {"type": "horizontal", "line": "L"}},
+      {"op": "drag", "p": "L.b", "to": [50, 9], "expect": {"points": {"L.b": [50, 0]}}}
+    ]},
+    {"name": "fully constrained rectangle corner", "steps": [
+      {"op": "point", "name": "O", "at": [0, 0]},
+      {"op": "constrain", "c": {"type": "fix", "entity": "O"}},
+      {"op": "rectangle", "name": "R", "p1": [0, 0], "p2": [31, 17]},
+      {"op": "constrain", "c": {"type": "coincident", "a": "O", "b": "R.p0"}},
+      {"op": "constrain", "c": {"type": "distance", "a": "R.p0", "b": "R.p1", "value": 40}},
+      {"op": "constrain", "c": {"type": "distance", "a": "R.p1", "b": "R.p2", "value": 20}},
+      {"op": "drag", "p": "R.p2", "to": [50, 30], "expect": {"error": "SKETCH.MOVE.CONSTRAINED", "unchanged": true}}
+    ]}
+  ]
+}

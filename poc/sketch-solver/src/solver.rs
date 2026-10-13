@@ -389,7 +389,7 @@ fn gauss_newton(loc: &Local, vals: &mut [f64], opts: &SolveOptions) -> (bool, us
 /// A few extra full steps after convergence so repeated solves land on the same floating-point fixed point.
 fn polish(loc: &Local, vals: &mut [f64], opts: &SolveOptions) {
     let fo = FactorOpts { lambda: 0.0, rel_tol: opts.rank_tol, circuits: false };
-    for _ in 0..4 {
+    for _ in 0..opts.max_iter {
         let (rows, r) = loc.eval(vals);
         let f = factor(&rows, &loc.winv, fo);
         let before = max_abs(f.kept_rows.iter().map(|&k| &r[k]));
@@ -400,8 +400,12 @@ fn polish(loc: &Local, vals: &mut [f64], opts: &SolveOptions) {
         let base = vals.to_vec();
         loc.apply(vals, &base, &dx, 1.0);
         let rt = loc.resid(vals);
-        if max_abs(f.kept_rows.iter().map(|&k| &rt[k])) > before {
+        let after = max_abs(f.kept_rows.iter().map(|&k| &rt[k]));
+        if after > before {
             vals.copy_from_slice(&base);
+            return;
+        }
+        if after == before {
             return;
         }
     }
@@ -433,7 +437,11 @@ fn levenberg_marquardt(loc: &Local, vals: &mut [f64], opts: &SolveOptions) -> (O
                 g[c] += v * rv;
             }
         }
-        if max_abs(&g) <= 1e-14 * (1.0 + phi.sqrt()) {
+        // Stationary when r is (numerically) orthogonal to range(J): relative test, so slow linear
+        // convergence towards a singular root (collinear triangle, SK-06) is not mistaken for a conflict.
+        let jn: f64 = rows.iter().flat_map(|row| row.iter().map(|e| e.1 * e.1)).sum::<f64>().sqrt();
+        let gn: f64 = g.iter().map(|v| v * v).sum::<f64>().sqrt();
+        if gn <= 1e-10 * jn * phi.sqrt() {
             return (Outcome::Conflict, it);
         }
         let f = factor(&rows, &loc.winv, FactorOpts { lambda, rel_tol: 0.0, circuits: false });
@@ -480,6 +488,16 @@ fn run_cluster(p: &Problem, cl: &Cluster, vals: &mut [f64], opts: &SolveOptions)
     if conv && hard_ok(vals) {
         return (Outcome::Converged, iters);
     }
+    // 2b. Kept rows converged but a dropped (nearly dependent) row is still violated: the root is singular
+    //     (e.g. collinear triangle, SK-06). Keep near-dependent rows and continue Newton.
+    if conv {
+        let tight = SolveOptions { rank_tol: 1e-15, ..opts.clone() };
+        let (conv, it) = gauss_newton(&loc, vals, &tight);
+        iters += it;
+        if conv && hard_ok(vals) {
+            return (Outcome::Converged, iters);
+        }
+    }
     // 3. Least squares.
     let (out, it) = levenberg_marquardt(&loc, vals, opts);
     iters += it;
@@ -501,6 +519,19 @@ struct Run {
     constant: Vec<usize>,
     outcomes: Vec<Outcome>,
     iterations: usize,
+    /// Curves that the solve shrank to zero size (lines to a point, circles to radius 0).
+    collapsed: Vec<EntityRef>,
+}
+
+/// Line length or radius of a curve in `vals`.
+fn curve_size(c: &Curve, slots: &Slots, vals: &[f64]) -> f64 {
+    match c.geom {
+        CurveGeom::Line { a, b } => {
+            let (sa, sb) = (slots.p(a), slots.p(b));
+            libm::hypot(vals[sb[0]] - vals[sa[0]], vals[sb[1]] - vals[sa[1]])
+        }
+        _ => vals[slots.r(c.id)],
+    }
 }
 
 impl Run {
@@ -511,9 +542,48 @@ impl Run {
 }
 
 fn run(sk: &Sketch, active: &dyn Fn(&Constraint) -> bool, edit: &EditContext, opts: &SolveOptions, scale: f64) -> Run {
+    let r = run_from(sk, active, edit, opts, scale, &[]);
+    if r.collapsed.is_empty() {
+        return r;
+    }
+    // Newton cannot see a rotation from an exactly perpendicular start (e.g. Vertical on a horizontal line):
+    // the min-norm step shrinks the line instead. Retry once with the collapsed lines nudged by 1e-3 rad and
+    // their size kept as a soft goal; keep the retry only if nothing collapses.
+    let mut edit2 = edit.clone();
+    for e in &r.collapsed {
+        if let EntityRef::Curve(c) = *e {
+            edit2.goals.push(match sk.curve(c).geom {
+                CurveGeom::Line { .. } => Goal::KeepLength { line: c },
+                _ => Goal::KeepRadius { curve: c },
+            });
+        }
+    }
+    let r2 = run_from(sk, active, &edit2, opts, scale, &r.collapsed);
+    if r2.collapsed.is_empty() { r2 } else { r }
+}
+
+fn run_from(
+    sk: &Sketch,
+    active: &dyn Fn(&Constraint) -> bool,
+    edit: &EditContext,
+    opts: &SolveOptions,
+    scale: f64,
+    nudge: &[EntityRef],
+) -> Run {
     let p = build(sk, active, edit, scale);
     let (clusters, constant) = decompose(&p);
     let mut vals = p.slots.vals.clone();
+    for e in nudge {
+        if let EntityRef::Curve(c) = *e
+            && let Some((a, b)) = sk.curve(c).line_points()
+        {
+            let (sa, sb) = (p.slots.p(a), p.slots.p(b));
+            let (d0, d1) = (vals[sb[0]] - vals[sa[0]], vals[sb[1]] - vals[sa[1]]);
+            let (end, sign) = if p.fixed[sb[0]] { (sa, -1.0) } else { (sb, 1.0) };
+            vals[end[0]] -= sign * 1e-3 * d1;
+            vals[end[1]] += sign * 1e-3 * d0;
+        }
+    }
     let mut outcomes = Vec::with_capacity(clusters.len());
     let mut iterations = 0;
     for cl in &clusters {
@@ -521,9 +591,24 @@ fn run(sk: &Sketch, active: &dyn Fn(&Constraint) -> bool, edit: &EditContext, op
         outcomes.push(o);
         iterations = iterations.max(it);
     }
+    // A solve that shrinks a curve to zero size has not really satisfied direction/tangency constraints
+    // (they are undefined there): treat it as infeasible so the conflict search can name the cause.
+    let eps = 1e-9 * scale;
+    let mut collapsed = Vec::new();
+    for c in sk.curves.values() {
+        if curve_size(c, &p.slots, &vals) <= eps && curve_size(c, &p.slots, &p.slots.vals) > eps {
+            collapsed.push(EntityRef::Curve(c.id));
+            let slots: Vec<usize> = c.points().iter().flat_map(|&q| p.slots.p(q)).collect();
+            for (ci, cl) in clusters.iter().enumerate() {
+                if slots.iter().any(|s| cl.cols.binary_search(s).is_ok()) {
+                    outcomes[ci] = Outcome::Conflict;
+                }
+            }
+        }
+    }
     let mut p = p;
     p.slots.vals.copy_from_slice(&vals);
-    Run { p, vals, clusters, constant, outcomes, iterations }
+    Run { p, vals, clusters, constant, outcomes, iterations, collapsed }
 }
 
 // ---------------------------------------------------------------------------------------------------------
@@ -632,24 +717,30 @@ fn degeneracy(sk: &Sketch, scale: f64) -> Vec<Diagnostic> {
             }
         }
     }
-    let lines: Vec<&Curve> = sk.curves.values().filter(|c| c.line_points().is_some()).collect();
-    for (i, l1) in lines.iter().enumerate() {
-        for l2 in &lines[i + 1..] {
-            let (a1, b1) = l1.line_points().unwrap();
-            let (a2, b2) = l2.line_points().unwrap();
-            for (o, p, q) in [(a1, b1, b2), (a1, b1, a2), (b1, a1, a2), (b1, a1, b2)] {
-                let other_end = if q == b2 { a2 } else { b2 };
-                if o != other_end {
-                    continue;
-                }
-                let (po, pp, pq) = (sk.xy(o), sk.xy(p), sk.xy(q));
-                let d1 = (pp.0 - po.0, pp.1 - po.1);
-                let d2 = (pq.0 - po.0, pq.1 - po.1);
-                let n = libm::hypot(d1.0, d1.1) * libm::hypot(d2.0, d2.1);
-                if n > 0.0 && ((d1.0 * d2.1 - d1.1 * d2.0) / n).abs() <= 1e-9 && d1.0 * d2.0 + d1.1 * d2.1 > 0.0 {
-                    folded.push(EntityRef::Curve(l1.id));
-                    folded.push(EntityRef::Curve(l2.id));
-                }
+    let lines: Vec<(CurveId, PointId, PointId)> =
+        sk.curves.values().filter_map(|c| c.line_points().map(|(a, b)| (c.id, a, b))).collect();
+    for (i, &(c1, a1, b1)) in lines.iter().enumerate() {
+        for &(c2, a2, b2) in &lines[i + 1..] {
+            // Shared end point o and the two far ends p, q.
+            let (o, p, q) = if a1 == a2 {
+                (a1, b1, b2)
+            } else if a1 == b2 {
+                (a1, b1, a2)
+            } else if b1 == a2 {
+                (b1, a1, b2)
+            } else if b1 == b2 {
+                (b1, a1, a2)
+            } else {
+                continue;
+            };
+            let (po, pp, pq) = (sk.xy(o), sk.xy(p), sk.xy(q));
+            let d1 = (pp.0 - po.0, pp.1 - po.1);
+            let d2 = (pq.0 - po.0, pq.1 - po.1);
+            let n = libm::hypot(d1.0, d1.1) * libm::hypot(d2.0, d2.1);
+            // Folded: both lines leave the shared point in the same direction (zero angle between them).
+            if n > 0.0 && ((d1.0 * d2.1 - d1.1 * d2.0) / n).abs() <= 1e-6 && d1.0 * d2.0 + d1.1 * d2.1 > 0.0 {
+                folded.push(EntityRef::Curve(c1));
+                folded.push(EntityRef::Curve(c2));
             }
         }
     }
@@ -822,15 +913,16 @@ fn analyze(orig: &Sketch, mut solved: Sketch, r: Run, opts: &SolveOptions, scale
     if !conflict_sets.is_empty() {
         let mut seeds: BTreeSet<ConstraintId> = conflict_sets.iter().flatten().copied().collect();
         let mut candidates: BTreeSet<ConstraintId> = BTreeSet::new();
-        for cl in r.clusters.iter() {
+        for (ci, cl) in r.clusters.iter().enumerate() {
             let ids: BTreeSet<ConstraintId> = cl.eqs[..cl.n_hard].iter().filter_map(|&e| owner_id(&p.eqs[e])).collect();
-            if ids.iter().any(|id| seeds.contains(id)) {
+            if r.outcomes[ci] == Outcome::Conflict || ids.iter().any(|id| seeds.contains(id)) {
                 candidates.extend(ids);
             }
         }
         candidates.extend(seeds.iter().copied());
         let fixes = related_fixes(orig, &candidates.iter().copied().collect::<Vec<_>>());
         candidates.extend(fixes);
+        let candidates_all: Vec<ConstraintId> = candidates.iter().copied().collect();
         if candidates.len() <= opts.conflict_search_limit {
             let cand: Vec<ConstraintId> = candidates.into_iter().collect();
             let iis = deletion_filter(orig, &cand, opts, scale);
@@ -839,6 +931,9 @@ fn analyze(orig: &Sketch, mut solved: Sketch, r: Run, opts: &SolveOptions, scale
             }
         }
         conflicts = seeds.into_iter().collect();
+        if conflicts.is_empty() {
+            conflicts = candidates_all;
+        }
     }
 
     r.p.slots.store(&mut solved);
@@ -852,12 +947,15 @@ fn analyze(orig: &Sketch, mut solved: Sketch, r: Run, opts: &SolveOptions, scale
     let mut diagnostics = Vec::new();
     let degenerate = if feasible { degeneracy(&solved, scale) } else { Vec::new() };
     let has_degenerate = degenerate.iter().any(|d| d.code == Code::GeometryDegenerate);
-    if has_degenerate {
+    if has_degenerate || !r.collapsed.is_empty() {
         // Rank loss at a degenerate configuration is explained by the degeneracy, not by redundancy.
         redundant.clear();
     }
     if !conflicts.is_empty() {
         diagnostics.push(Diagnostic::new(Code::SolveConflict).with_constraints(conflicts.clone()));
+        if !r.collapsed.is_empty() {
+            diagnostics.push(Diagnostic::new(Code::DimInvalidValue).with_entities(r.collapsed.clone()));
+        }
     } else if nonconvergent {
         diagnostics.push(Diagnostic::new(Code::SolveNonconvergent));
     }
@@ -981,6 +1079,15 @@ impl EditContext {
             }
             Collinear { l1, l2 } => {
                 anchor_curve(l1, &mut g);
+                // An end already on l1's extension stays: l2 rotates about it (F109).
+                let (a, b) = sk.curve(l2).line_points().expect("line");
+                let on_l1 = |p: PointId| signed_dist(sk, p, l1).abs() <= 1e-9 * length_scale(sk);
+                for p in [a, b] {
+                    if on_l1(p) {
+                        g.push(Goal::KeepPoint { p });
+                        break;
+                    }
+                }
                 g.push(Goal::KeepLength { line: l2 });
                 moving.push(EntityRef::Curve(l2));
             }

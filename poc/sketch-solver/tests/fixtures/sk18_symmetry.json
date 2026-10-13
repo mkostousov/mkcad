@@ -1,0 +1,21 @@
+{
+  "id": "SK-18", "title": "Symmetric lines about an axis: TRUE MIRROR of both endpoints (decision N.2a-2, differs from F65)",
+  "ref": ["F65", "N.2a-2"],
+  "cases": [
+    {"name": "lines", "steps": [
+      {"op": "line", "name": "L1", "a": [-10, 2], "b": [-2, 10]},
+      {"op": "line", "name": "L2", "a": [5, 1], "b": [14, 12]},
+      {"op": "line", "name": "X", "a": [0, -10], "b": [0, 20]},
+      {"op": "constrain", "c": {"type": "symmetric_lines", "l1": "L1", "l2": "L2", "axis": "X"},
+       "expect": {"unmoved": ["L1", "X"], "points": {"L2.a": [10, 2], "L2.b": [2, 10]}}},
+      {"op": "check", "expect": {"dof": 8}}
+    ]},
+    {"name": "points about an oblique axis", "steps": [
+      {"op": "line", "name": "X", "a": [0, 0], "b": [10, 10]},
+      {"op": "point", "name": "P", "at": [6, 1]},
+      {"op": "point", "name": "Q", "at": [0, 5]},
+      {"op": "constrain", "c": {"type": "symmetric", "p1": "P", "p2": "Q", "axis": "X"},
+       "expect": {"unmoved": ["X", "P"], "points": {"Q": [1, 6]}}}
+    ]}
+  ]
+}

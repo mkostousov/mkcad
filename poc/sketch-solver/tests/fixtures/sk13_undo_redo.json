@@ -1,0 +1,29 @@
+{
+  "id": "SK-13", "title": "Undo x5 / redo x5 after rect + dim + value + driven dim + dim: exact reverse order, redo bit-identical",
+  "ref": ["F48", "F49"],
+  "steps": [
+    {"op": "snapshot", "label": "s0"},
+    {"op": "rectangle", "name": "R", "p1": [0, 0], "p2": [31, 17]},
+    {"op": "snapshot", "label": "s1"},
+    {"op": "constrain", "name": "W", "measured": true, "c": {"type": "distance", "a": "R.p0", "b": "R.p1", "value": 0},
+     "expect": {"dim_value": {"W": 31}, "unmoved": ["R.bottom", "R.top"]}},
+    {"op": "snapshot", "label": "s2"},
+    {"op": "set", "dim": "W", "value": 40},
+    {"op": "snapshot", "label": "s3"},
+    {"op": "constrain", "name": "Wd", "measured": true, "driving": false, "c": {"type": "distance", "a": "R.p3", "b": "R.p2", "value": 0}},
+    {"op": "snapshot", "label": "s4"},
+    {"op": "constrain", "name": "H", "measured": true, "c": {"type": "distance", "a": "R.p1", "b": "R.p2", "value": 0}},
+    {"op": "snapshot", "label": "s5"},
+    {"op": "check", "expect": {"undo_depth": 5}},
+    {"op": "undo", "expect": {"snapshot_eq": "s4"}},
+    {"op": "undo", "expect": {"snapshot_eq": "s3"}},
+    {"op": "undo", "expect": {"snapshot_eq": "s2"}},
+    {"op": "undo", "expect": {"snapshot_eq": "s1"}},
+    {"op": "undo", "expect": {"snapshot_eq": "s0", "undo_depth": 0}},
+    {"op": "redo", "expect": {"snapshot_eq": "s1"}},
+    {"op": "redo", "expect": {"snapshot_eq": "s2"}},
+    {"op": "redo", "expect": {"snapshot_eq": "s3"}},
+    {"op": "redo", "expect": {"snapshot_eq": "s4"}},
+    {"op": "redo", "expect": {"snapshot_eq": "s5", "undo_depth": 5}}
+  ]
+}

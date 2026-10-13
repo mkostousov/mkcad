@@ -1,0 +1,20 @@
+{
+  "id": "SK-09", "title": "Same constraint twice (either argument order) -> DUPLICATE, no change", "ref": ["F60"],
+  "steps": [
+    {"op": "line", "name": "L1", "a": [0, 0], "b": [30, 4]},
+    {"op": "line", "name": "L2", "a": [0, 10], "b": [25, 20]},
+    {"op": "constrain", "name": "par", "c": {"type": "parallel", "l1": "L1", "l2": "L2"}},
+    {"op": "constrain", "c": {"type": "parallel", "l1": "L1", "l2": "L2"},
+     "expect": {"error": "SKETCH.CONSTRAINT.DUPLICATE", "unchanged": true}},
+    {"op": "constrain", "c": {"type": "parallel", "l1": "L2", "l2": "L1"},
+     "expect": {"error": "SKETCH.CONSTRAINT.DUPLICATE", "unchanged": true}},
+    {"op": "constrain", "name": "h", "c": {"type": "horizontal", "line": "L1"}},
+    {"op": "constrain", "c": {"type": "horizontal", "line": "L1"}, "expect": {"error": "SKETCH.CONSTRAINT.DUPLICATE", "unchanged": true}},
+    {"op": "constrain", "c": {"type": "horizontal", "line": "L2"},
+     "expect": {"error": "SKETCH.CONSTRAINT.REDUNDANT", "suggestion": "delete_one", "redundant_set": ["par", "h", "$new"], "unchanged": true}},
+    {"op": "constrain", "name": "co", "c": {"type": "coincident", "a": "L1.b", "b": "L2.a"}},
+    {"op": "constrain", "c": {"type": "coincident", "a": "L2.a", "b": "L1.b"}, "expect": {"error": "SKETCH.CONSTRAINT.DUPLICATE", "unchanged": true}},
+    {"op": "constrain", "c": {"type": "vertical", "line": "L2"},
+     "expect": {"error": "SKETCH.CONSTRAINT.CONFLICT", "conflicts": ["par", "h", "$new"], "unchanged": true}}
+  ]
+}

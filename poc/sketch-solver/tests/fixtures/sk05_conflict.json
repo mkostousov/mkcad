@@ -1,0 +1,19 @@
+{
+  "id": "SK-05", "title": "Triangle 30/25/25 -> 30/10/10: SOLVE.CONFLICT naming the 3 lengths, previous geometry kept", "ref": ["F105"],
+  "steps": [
+    {"op": "line", "name": "AB", "a": [0, 0], "b": [28, 1]},
+    {"op": "line", "name": "BC", "a": "AB.b", "b": [14, 18]},
+    {"op": "line", "name": "CA", "a": "BC.b", "b": "AB.a"},
+    {"op": "constrain", "name": "fixA", "c": {"type": "fix", "entity": "AB.a"}},
+    {"op": "constrain", "name": "hAB", "c": {"type": "horizontal", "line": "AB"}},
+    {"op": "constrain", "name": "base", "c": {"type": "distance", "a": "AB.a", "b": "AB.b", "value": 30}},
+    {"op": "constrain", "name": "s1", "c": {"type": "distance", "a": "AB.a", "b": "BC.b", "value": 25}},
+    {"op": "constrain", "name": "s2", "c": {"type": "distance", "a": "AB.b", "b": "BC.b", "value": 25},
+     "expect": {"status": "fully_constrained", "points": {"BC.b": [15, 20], "AB.b": [30, 0]}}},
+    {"op": "set", "dim": "s2", "value": 10, "expect": {"points": {"BC.b": [23.75, 7.806247497997997]}}},
+    {"op": "set", "dim": "s1", "value": 10,
+     "expect": {"error": "SKETCH.SOLVE.CONFLICT", "conflicts": ["base", "s1", "s2"], "unchanged": true}},
+    {"op": "check", "expect": {"dim_value": {"s1": 25, "s2": 10}, "points": {"BC.b": [23.75, 7.806247497997997]}}},
+    {"op": "set", "dim": "s2", "value": 25, "expect": {"points": {"BC.b": [15, 20]}}}
+  ]
+}
