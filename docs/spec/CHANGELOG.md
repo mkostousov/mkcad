@@ -1,5 +1,9 @@
 # Spec change log
 
+## Draft 3 addendum — PoC K-1 (2026-10-12)
+- H.5: appended `SKETCH.GEOMETRY.DEGENERATE` (warning) and `SKETCH.INPUT.INVALID` (error), both [P] from PoC K-1
+  (`poc/RESULTS.md`).
+
 ## Draft 3 (2026-10-12)
 - New artifact S (silent-outcome requirements, 16 rows) with new codes `IO.UNITS.ASSUMED`, `DOC.RECOVERY.AVAILABLE`,
   `JOINT.LIMIT.CLAMPED`, `DRAWING.GENERATE.FAILED`.
