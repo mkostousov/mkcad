@@ -1,0 +1,13 @@
+{
+  "id": "SK-16", "title": "Under-constrained rectangle, W 60/40 x10: path-dependent but reproducible (runner re-runs and compares bits)",
+  "ref": ["F10"],
+  "steps": [
+    {"op": "rectangle", "name": "R", "p1": [0, 0], "p2": [31, 17]},
+    {"op": "constrain", "name": "W", "c": {"type": "distance", "a": "R.p0", "b": "R.p1", "value": 40}},
+    {"op": "repeat", "times": 10, "steps": [
+      {"op": "set", "dim": "W", "value": 60, "expect": {"length": {"R.bottom": 60, "R.top": 60}}},
+      {"op": "set", "dim": "W", "value": 40, "expect": {"length": {"R.bottom": 40}}}
+    ]},
+    {"op": "check", "expect": {"status": "under_constrained", "dof": 3}}
+  ]
+}

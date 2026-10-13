@@ -1,0 +1,110 @@
+{
+  "id": "DOF-25", "title": "DOF counts match hand-computed values (F11 §5 exit criterion: >= 20 sample sketches)",
+  "ref": ["F11 §5.3"],
+  "cases": [
+    {"name": "01 point: 2", "steps": [{"op": "point", "name": "P", "at": [1, 2], "expect": {"dof": 2, "entity_dof": {"P": 2}}}]},
+    {"name": "02 free line: 4", "steps": [{"op": "line", "name": "L", "a": [0, 0], "b": [5, 1], "expect": {"dof": 4, "entity_dof": {"L": 4}}}]},
+    {"name": "03 circle: 3", "steps": [{"op": "circle", "name": "C", "center": [0, 0], "r": 4, "expect": {"dof": 3, "entity_dof": {"C": 3, "C.c": 2}}}]},
+    {"name": "04 arc: 5 (7 params - 2 internal)", "steps": [
+      {"op": "arc", "name": "A", "center": [0, 0], "start": [5, 0], "end": [0, 5], "expect": {"dof": 5, "entity_dof": {"A": 5, "A.s": 2}}}]},
+    {"name": "05 line + H: 3", "steps": [
+      {"op": "line", "name": "L", "a": [0, 0], "b": [5, 1]},
+      {"op": "constrain", "c": {"type": "horizontal", "line": "L"}, "expect": {"dof": 3, "entity_dof": {"L": 3}}}]},
+    {"name": "06 line + H + length: 2", "steps": [
+      {"op": "line", "name": "L", "a": [0, 0], "b": [5, 1]},
+      {"op": "constrain", "c": {"type": "horizontal", "line": "L"}},
+      {"op": "constrain", "c": {"type": "distance", "a": "L.a", "b": "L.b", "value": 7}, "expect": {"dof": 2, "entity_dof": {"L": 2}}}]},
+    {"name": "07 line, fixed start + H + length: 0", "steps": [
+      {"op": "line", "name": "L", "a": [0, 0], "b": [5, 1]},
+      {"op": "constrain", "c": {"type": "fix", "entity": "L.a"}},
+      {"op": "constrain", "c": {"type": "horizontal", "line": "L"}},
+      {"op": "constrain", "c": {"type": "distance", "a": "L.a", "b": "L.b", "value": 7},
+       "expect": {"dof": 0, "status": "fully_constrained", "points": {"L.b": [7, 0]}}}]},
+    {"name": "08 rectangle tool (2H + 2V): 4", "steps": [
+      {"op": "rectangle", "name": "R", "p1": [0, 0], "p2": [4, 3], "expect": {"dof": 4, "entity_dof": {"R.bottom": 3, "R.p0": 2}}}]},
+    {"name": "09 rectangle on fixed origin: 2; corner/side DOF", "steps": [
+      {"op": "point", "name": "O", "at": [0, 0]},
+      {"op": "constrain", "c": {"type": "fix", "entity": "O"}},
+      {"op": "rectangle", "name": "R", "p1": [0, 0], "p2": [4, 3]},
+      {"op": "constrain", "c": {"type": "coincident", "a": "O", "b": "R.p0"},
+       "expect": {"dof": 2, "entity_dof": {"R.p0": 0, "R.p1": 1, "R.p2": 2, "R.p3": 1, "R.bottom": 1, "R.right": 2, "R.top": 2, "R.left": 1}}}]},
+    {"name": "10 SK-01 rectangle fully dimensioned: 0", "steps": [
+      {"op": "point", "name": "O", "at": [0, 0]},
+      {"op": "constrain", "c": {"type": "fix", "entity": "O"}},
+      {"op": "rectangle", "name": "R", "p1": [0, 0], "p2": [4, 3]},
+      {"op": "constrain", "c": {"type": "coincident", "a": "O", "b": "R.p0"}},
+      {"op": "constrain", "c": {"type": "distance_h", "a": "R.p0", "b": "R.p1", "value": 40}},
+      {"op": "constrain", "c": {"type": "distance_v", "a": "R.p1", "b": "R.p2", "value": 20}, "expect": {"dof": 0}}]},
+    {"name": "11 two lines joined by coincident: 6", "steps": [
+      {"op": "line", "name": "L1", "a": [0, 0], "b": [5, 1]},
+      {"op": "line", "name": "L2", "a": [6, 1], "b": [9, 5]},
+      {"op": "constrain", "c": {"type": "coincident", "a": "L1.b", "b": "L2.a"}, "expect": {"dof": 6}}]},
+    {"name": "12 two parallel lines: 7", "steps": [
+      {"op": "line", "name": "L1", "a": [0, 0], "b": [5, 1]},
+      {"op": "line", "name": "L2", "a": [0, 3], "b": [4, 6]},
+      {"op": "constrain", "c": {"type": "parallel", "l1": "L1", "l2": "L2"}, "expect": {"dof": 7}}]},
+    {"name": "13 circle + radius: 2", "steps": [
+      {"op": "circle", "name": "C", "center": [0, 0], "r": 4},
+      {"op": "constrain", "c": {"type": "radius", "curve": "C", "value": 6}, "expect": {"dof": 2, "radius": {"C": 6}}}]},
+    {"name": "14 concentric circles: 4", "steps": [
+      {"op": "circle", "name": "C1", "center": [0, 0], "r": 4},
+      {"op": "circle", "name": "C2", "center": [1, 1], "r": 2},
+      {"op": "constrain", "c": {"type": "concentric", "c1": "C1", "c2": "C2"}, "expect": {"dof": 4}}]},
+    {"name": "15 concentric + equal radius: 3 (equal + concentric = same circle twice)", "steps": [
+      {"op": "circle", "name": "C1", "center": [0, 0], "r": 4},
+      {"op": "circle", "name": "C2", "center": [1, 1], "r": 2},
+      {"op": "constrain", "c": {"type": "concentric", "c1": "C1", "c2": "C2"}},
+      {"op": "constrain", "c": {"type": "equal_radius", "c1": "C1", "c2": "C2"}, "expect": {"dof": 3}}]},
+    {"name": "16 line tangent to circle: 6", "steps": [
+      {"op": "circle", "name": "C", "center": [0, 0], "r": 4},
+      {"op": "line", "name": "L", "a": [-6, 5], "b": [6, 5]},
+      {"op": "constrain", "c": {"type": "tangent", "line": "L", "curve": "C"}, "expect": {"dof": 6}}]},
+    {"name": "17 triangle with three lengths: 3 (rigid motion)", "steps": [
+      {"op": "line", "name": "AB", "a": [0, 0], "b": [28, 1]},
+      {"op": "line", "name": "BC", "a": "AB.b", "b": [14, 18]},
+      {"op": "line", "name": "CA", "a": "BC.b", "b": "AB.a"},
+      {"op": "constrain", "c": {"type": "distance", "a": "AB.a", "b": "AB.b", "value": 30}},
+      {"op": "constrain", "c": {"type": "distance", "a": "AB.a", "b": "BC.b", "value": 25}},
+      {"op": "constrain", "c": {"type": "distance", "a": "AB.b", "b": "BC.b", "value": 25}, "expect": {"dof": 3, "status": "under_constrained"}}]},
+    {"name": "18 triangle anchored (fix + H): 0", "steps": [
+      {"op": "line", "name": "AB", "a": [0, 0], "b": [28, 1]},
+      {"op": "line", "name": "BC", "a": "AB.b", "b": [14, 18]},
+      {"op": "line", "name": "CA", "a": "BC.b", "b": "AB.a"},
+      {"op": "constrain", "c": {"type": "fix", "entity": "AB.a"}},
+      {"op": "constrain", "c": {"type": "horizontal", "line": "AB"}},
+      {"op": "constrain", "c": {"type": "distance", "a": "AB.a", "b": "AB.b", "value": 30}},
+      {"op": "constrain", "c": {"type": "distance", "a": "AB.a", "b": "BC.b", "value": 25}},
+      {"op": "constrain", "c": {"type": "distance", "a": "AB.b", "b": "BC.b", "value": 25}, "expect": {"dof": 0, "status": "fully_constrained"}}]},
+    {"name": "19 point on circle: 4", "steps": [
+      {"op": "circle", "name": "C", "center": [0, 0], "r": 4},
+      {"op": "point", "name": "P", "at": [5, 1]},
+      {"op": "constrain", "c": {"type": "point_on_circle", "p": "P", "curve": "C"}, "expect": {"dof": 4, "entity_dof": {"P": 2}}}]},
+    {"name": "20 midpoint: 4", "steps": [
+      {"op": "line", "name": "L", "a": [0, 0], "b": [10, 2]},
+      {"op": "point", "name": "P", "at": [4, 4]},
+      {"op": "constrain", "c": {"type": "midpoint", "p": "P", "line": "L"}, "expect": {"dof": 4}}]},
+    {"name": "21 symmetric points about a line: 6", "steps": [
+      {"op": "line", "name": "X", "a": [0, 0], "b": [0, 10]},
+      {"op": "point", "name": "P", "at": [-3, 2]},
+      {"op": "point", "name": "Q", "at": [4, 3]},
+      {"op": "constrain", "c": {"type": "symmetric", "p1": "P", "p2": "Q", "axis": "X"}, "expect": {"dof": 6, "points": {"Q": [3, 2]}}}]},
+    {"name": "22 arc with fixed centre and radius: 2", "steps": [
+      {"op": "arc", "name": "A", "center": [0, 0], "start": [5, 0], "end": [0, 5]},
+      {"op": "constrain", "c": {"type": "fix", "entity": "A.c"}},
+      {"op": "constrain", "c": {"type": "radius", "curve": "A", "value": 8},
+       "expect": {"dof": 2, "entity_dof": {"A": 2, "A.s": 1, "A.e": 1, "A.c": 0}}}]},
+    {"name": "23 angle between lines sharing a point: 5", "steps": [
+      {"op": "line", "name": "L1", "a": [0, 0], "b": [10, 0]},
+      {"op": "line", "name": "L2", "a": "L1.a", "b": [5, 5]},
+      {"op": "constrain", "c": {"type": "angle", "l1": "L1", "l2": "L2", "degrees": 60}, "expect": {"dof": 5}}]},
+    {"name": "24 collinear lines: 6", "steps": [
+      {"op": "line", "name": "L1", "a": [0, 0], "b": [10, 1]},
+      {"op": "line", "name": "L2", "a": [12, 2], "b": [20, 3]},
+      {"op": "constrain", "c": {"type": "collinear", "l1": "L1", "l2": "L2"}, "expect": {"dof": 6}}]},
+    {"name": "25 perpendicular + equal lines sharing a point: 4", "steps": [
+      {"op": "line", "name": "L1", "a": [0, 0], "b": [10, 1]},
+      {"op": "line", "name": "L2", "a": "L1.a", "b": [-1, 8]},
+      {"op": "constrain", "c": {"type": "perpendicular", "l1": "L1", "l2": "L2"}},
+      {"op": "constrain", "c": {"type": "equal_length", "l1": "L1", "l2": "L2"}, "expect": {"dof": 4, "status": "under_constrained"}}]}
+  ]
+}

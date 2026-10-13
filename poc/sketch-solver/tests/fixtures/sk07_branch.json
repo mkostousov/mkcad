@@ -1,0 +1,20 @@
+{
+  "id": "SK-07", "title": "Alternate one side 20/28 x10: apex stays y>0, exactly 2 positions within 1e-9 (no mirror flip)", "ref": ["F107"],
+  "steps": [
+    {"op": "line", "name": "AB", "a": [0, 0], "b": [28, 1]},
+    {"op": "line", "name": "BC", "a": "AB.b", "b": [14, 18]},
+    {"op": "line", "name": "CA", "a": "BC.b", "b": "AB.a"},
+    {"op": "constrain", "c": {"type": "fix", "entity": "AB.a"}},
+    {"op": "constrain", "c": {"type": "horizontal", "line": "AB"}},
+    {"op": "constrain", "c": {"type": "distance", "a": "AB.a", "b": "AB.b", "value": 30}},
+    {"op": "constrain", "c": {"type": "distance", "a": "AB.a", "b": "BC.b", "value": 25}},
+    {"op": "constrain", "name": "s2", "c": {"type": "distance", "a": "AB.b", "b": "BC.b", "value": 25}},
+    {"op": "repeat", "times": 10, "steps": [
+      {"op": "set", "dim": "s2", "value": 20, "expect": {"y_positive": ["BC.b"]}},
+      {"op": "collect", "group": "apex", "tol": 1e-9},
+      {"op": "set", "dim": "s2", "value": 28, "expect": {"y_positive": ["BC.b"]}},
+      {"op": "collect", "group": "apex", "tol": 1e-9}
+    ]},
+    {"op": "distinct", "group": "apex", "count": 2}
+  ]
+}

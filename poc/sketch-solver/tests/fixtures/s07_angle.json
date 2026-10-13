@@ -1,0 +1,19 @@
+{
+  "id": "S-07", "title": "Angle dimension: rigid rotation about the shared point keeps length; 0/180/-10/200 deg rejected",
+  "ref": ["F134", "S-07"],
+  "steps": [
+    {"op": "line", "name": "L1", "a": [0, 0], "b": [30, 0]},
+    {"op": "constrain", "c": {"type": "fix", "entity": "L1"}},
+    {"op": "line", "name": "L2", "a": "L1.a", "b": [20, 20]},
+    {"op": "constrain", "name": "A", "measured": true, "c": {"type": "angle", "l1": "L1", "l2": "L2", "degrees": 0},
+     "expect": {"dim_value": {"A": 45}, "unmoved": ["L2"], "dof": 1}},
+    {"op": "set", "dim": "A", "value": 30,
+     "expect": {"same_length": ["L2"], "points": {"L2.b": [24.494897427831784, 14.142135623730951]}, "tol": 1e-9}},
+    {"op": "set", "dim": "A", "value": 0, "expect": {"error": "SKETCH.DIM.INVALID_VALUE", "unchanged": true}},
+    {"op": "set", "dim": "A", "value": 180, "expect": {"error": "SKETCH.DIM.INVALID_VALUE", "unchanged": true}},
+    {"op": "set", "dim": "A", "value": -10, "expect": {"error": "SKETCH.DIM.INVALID_VALUE", "unchanged": true}},
+    {"op": "set", "dim": "A", "value": 200, "expect": {"error": "SKETCH.DIM.INVALID_VALUE", "unchanged": true}},
+    {"op": "set", "dim": "A", "value": 120, "expect": {"same_length": ["L2"], "points": {"L2.b": [-14.142135623730951, 24.494897427831784]}, "tol": 1e-9}},
+    {"op": "set", "dim": "A", "value": 45, "expect": {"points": {"L2.b": [20, 20]}, "tol": 1e-9}}
+  ]
+}

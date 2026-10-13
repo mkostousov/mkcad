@@ -1,0 +1,18 @@
+{
+  "id": "SK-06", "title": "Triangle 30/15/15 solves collinear with a DEGENERATE warning; recovers to 25/25", "ref": ["F106"],
+  "steps": [
+    {"op": "line", "name": "AB", "a": [0, 0], "b": [28, 1]},
+    {"op": "line", "name": "BC", "a": "AB.b", "b": [14, 18]},
+    {"op": "line", "name": "CA", "a": "BC.b", "b": "AB.a"},
+    {"op": "constrain", "c": {"type": "fix", "entity": "AB.a"}},
+    {"op": "constrain", "c": {"type": "horizontal", "line": "AB"}},
+    {"op": "constrain", "name": "base", "c": {"type": "distance", "a": "AB.a", "b": "AB.b", "value": 30}},
+    {"op": "constrain", "name": "s1", "c": {"type": "distance", "a": "AB.a", "b": "BC.b", "value": 25}},
+    {"op": "constrain", "name": "s2", "c": {"type": "distance", "a": "AB.b", "b": "BC.b", "value": 25}},
+    {"op": "set", "dim": "s1", "value": 15},
+    {"op": "set", "dim": "s2", "value": 15,
+     "expect": {"codes": ["SKETCH.GEOMETRY.DEGENERATE"], "points": {"BC.b": [15, 0]}, "tol": 1e-6}},
+    {"op": "set", "dim": "s1", "value": 25},
+    {"op": "set", "dim": "s2", "value": 25, "expect": {"points": {"BC.b": [15, 20]}, "no_codes": ["SKETCH.GEOMETRY.DEGENERATE"]}}
+  ]
+}

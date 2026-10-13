@@ -1,0 +1,29 @@
+{
+  "id": "SK-19", "title": "Rotate/scale with constraints present: never silent (REMOVED lists H/V), quarter turns swap H/V, scale keeps dims",
+  "ref": ["F137", "F207", "S-08"],
+  "cases": [
+    {"name": "rotate 30 deg removes H/V with a warning", "steps": [
+      {"op": "rectangle", "name": "R", "p1": [0, 0], "p2": [40, 20]},
+      {"op": "constrain", "name": "W", "c": {"type": "distance", "a": "R.p0", "b": "R.p1", "value": 40}},
+      {"op": "rotate", "curves": ["R.bottom", "R.right", "R.top", "R.left"], "center": [0, 0], "deg": 30,
+       "expect": {"codes": ["SKETCH.CONSTRAINT.REMOVED"], "removed": ["R.h1", "R.v1", "R.h2", "R.v2"],
+                  "dim_value": {"W": 40}, "length": {"R.bottom": 40, "R.right": 20},
+                  "points": {"R.p1": [34.64101615137755, 20]}, "tol": 1e-9}},
+      {"op": "undo", "expect": {"kind": {"R.h1": "horizontal"}, "points": {"R.p1": [40, 0]}}}
+    ]},
+    {"name": "rotate 90 deg swaps H and V", "steps": [
+      {"op": "rectangle", "name": "R", "p1": [0, 0], "p2": [40, 20]},
+      {"op": "rotate", "curves": ["R.bottom", "R.right", "R.top", "R.left"], "center": [0, 0], "deg": 90,
+       "expect": {"no_codes": ["SKETCH.CONSTRAINT.REMOVED"], "kind": {"R.h1": "vertical", "R.v1": "horizontal"},
+                  "points": {"R.p2": [-20, 40]}, "tol": 1e-12}}
+    ]},
+    {"name": "scale x2 scales the dimension values instead of deleting them", "steps": [
+      {"op": "rectangle", "name": "R", "p1": [0, 0], "p2": [40, 20]},
+      {"op": "constrain", "name": "W", "c": {"type": "distance", "a": "R.p0", "b": "R.p1", "value": 40}},
+      {"op": "constrain", "name": "H", "c": {"type": "distance", "a": "R.p1", "b": "R.p2", "value": 20}},
+      {"op": "scale", "curves": ["R.bottom", "R.right", "R.top", "R.left"], "center": [0, 0], "factor": 2,
+       "expect": {"dim_value": {"W": 80, "H": 40}, "points": {"R.p2": [80, 40]}, "no_codes": ["SKETCH.CONSTRAINT.REMOVED"]}},
+      {"op": "scale", "curves": ["R.bottom"], "center": [0, 0], "factor": 0, "expect": {"error": "SKETCH.DIM.INVALID_VALUE", "unchanged": true}}
+    ]}
+  ]
+}

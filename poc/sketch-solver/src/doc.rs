@@ -164,8 +164,9 @@ impl SketchDoc {
         };
         match res.status {
             Status::Conflict => {
-                let d = Diagnostic::new(fail_code).with_constraints(res.conflicts.clone());
-                return reject(vec![d], res);
+                let mut diags = vec![Diagnostic::new(fail_code).with_constraints(res.conflicts.clone())];
+                diags.extend(res.diagnostics.iter().filter(|d| d.code == Code::DimInvalidValue).cloned());
+                return reject(diags, res);
             }
             Status::NonConvergent => return reject(vec![Diagnostic::new(Code::SolveNonconvergent)], res),
             Status::Redundant => {

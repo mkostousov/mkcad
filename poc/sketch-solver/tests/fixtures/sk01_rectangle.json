@@ -1,0 +1,16 @@
+{
+  "id": "SK-01", "title": "2-pt rectangle from origin; W=40, H=20 -> fully constrained", "ref": ["F14", "F36", "F68"],
+  "steps": [
+    {"op": "point", "name": "O", "at": [0, 0]},
+    {"op": "constrain", "name": "fixO", "c": {"type": "fix", "entity": "O"}, "expect": {"dof": 0}},
+    {"op": "rectangle", "name": "R", "p1": [0, 0], "p2": [31, 17],
+     "expect": {"status": "under_constrained", "dof": 4, "kind": {"R.h1": "horizontal", "R.v1": "vertical", "R.h2": "horizontal", "R.v2": "vertical"}}},
+    {"op": "constrain", "name": "c0", "c": {"type": "coincident", "a": "O", "b": "R.p0"}, "expect": {"dof": 2}},
+    {"op": "constrain", "name": "W", "c": {"type": "distance", "a": "R.p0", "b": "R.p1", "value": 40}, "expect": {"dof": 1}},
+    {"op": "constrain", "name": "H", "c": {"type": "distance", "a": "R.p1", "b": "R.p2", "value": 20},
+     "expect": {"status": "fully_constrained", "dof": 0,
+                "points": {"R.p0": [0, 0], "R.p1": [40, 0], "R.p2": [40, 20], "R.p3": [0, 20]},
+                "entity_dof": {"R.bottom": 0, "R.right": 0, "R.top": 0, "R.left": 0, "R.p2": 0, "O": 0},
+                "area": {"points": ["R.p0", "R.p1", "R.p2", "R.p3"], "value": 800}}}
+  ]
+}

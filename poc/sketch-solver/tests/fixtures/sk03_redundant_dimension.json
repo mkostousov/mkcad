@@ -1,0 +1,20 @@
+{
+  "id": "SK-03", "title": "SK-01, dimension the opposite edge -> REDUNDANT + make_driven, no change; driven dimension follows", "ref": ["F15", "F38"],
+  "steps": [
+    {"op": "point", "name": "O", "at": [0, 0]},
+    {"op": "constrain", "c": {"type": "fix", "entity": "O"}},
+    {"op": "rectangle", "name": "R", "p1": [0, 0], "p2": [31, 17]},
+    {"op": "constrain", "c": {"type": "coincident", "a": "O", "b": "R.p0"}},
+    {"op": "constrain", "name": "W", "c": {"type": "distance", "a": "R.p0", "b": "R.p1", "value": 40}},
+    {"op": "constrain", "name": "H", "c": {"type": "distance", "a": "R.p1", "b": "R.p2", "value": 20}},
+    {"op": "constrain", "name": "Wtop", "c": {"type": "distance", "a": "R.p3", "b": "R.p2", "value": 40},
+     "expect": {"error": "SKETCH.CONSTRAINT.REDUNDANT", "suggestion": "make_driven", "unchanged": true}},
+    {"op": "constrain", "name": "Wtop", "measured": true, "c": {"type": "distance", "a": "R.p3", "b": "R.p2", "value": 0},
+     "expect": {"error": "SKETCH.CONSTRAINT.REDUNDANT", "unchanged": true}},
+    {"op": "constrain", "name": "Wtop", "driving": false, "measured": true, "c": {"type": "distance", "a": "R.p3", "b": "R.p2", "value": 0},
+     "expect": {"status": "fully_constrained", "dim_value": {"Wtop": 40}, "driving": {"Wtop": false}}},
+    {"op": "set", "dim": "W", "value": 55, "expect": {"dim_value": {"Wtop": 55}, "points": {"R.p2": [55, 20]}}},
+    {"op": "driving", "dim": "Wtop", "value": true, "expect": {"error": "SKETCH.CONSTRAINT.REDUNDANT", "unchanged": true}},
+    {"op": "set", "dim": "Wtop", "value": 60, "expect": {"error": "SKETCH.INPUT.INVALID", "unchanged": true}}
+  ]
+}

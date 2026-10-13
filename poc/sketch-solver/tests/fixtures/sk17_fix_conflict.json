@@ -1,0 +1,14 @@
+{
+  "id": "SK-17", "title": "Fix a line; Horizontal on the fixed oblique line -> CONSTRAINT.CONFLICT {fix, horizontal}", "ref": ["F66"],
+  "steps": [
+    {"op": "line", "name": "L", "a": [0, 0], "b": [30, 5]},
+    {"op": "constrain", "name": "fix", "c": {"type": "fix", "entity": "L"},
+     "expect": {"dof": 0, "entity_dof": {"L": 0}, "unmoved": ["L"]}},
+    {"op": "constrain", "c": {"type": "horizontal", "line": "L"},
+     "expect": {"error": "SKETCH.CONSTRAINT.CONFLICT", "conflicts": ["fix", "$new"], "unchanged": true}},
+    {"op": "line", "name": "M", "a": "L.b", "b": [40, 20]},
+    {"op": "constrain", "c": {"type": "distance", "a": "L.a", "b": "L.b", "value": 20},
+     "expect": {"error": "SKETCH.CONSTRAINT.CONFLICT", "conflicts": ["fix", "$new"], "unchanged": true}},
+    {"op": "check", "expect": {"dof": 2, "entity_dof": {"M": 2, "L": 0}}}
+  ]
+}

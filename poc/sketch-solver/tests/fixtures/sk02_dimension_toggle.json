@@ -1,0 +1,18 @@
+{
+  "id": "SK-02", "title": "SK-01, then W 40/73.3 toggled x20 -> exactly 1 distinct geometry at W=40 (bit level)", "ref": ["F16"],
+  "steps": [
+    {"op": "point", "name": "O", "at": [0, 0]},
+    {"op": "constrain", "c": {"type": "fix", "entity": "O"}},
+    {"op": "rectangle", "name": "R", "p1": [0, 0], "p2": [31, 17]},
+    {"op": "constrain", "c": {"type": "coincident", "a": "O", "b": "R.p0"}},
+    {"op": "constrain", "name": "W", "c": {"type": "distance", "a": "R.p0", "b": "R.p1", "value": 40}},
+    {"op": "constrain", "name": "H", "c": {"type": "distance", "a": "R.p1", "b": "R.p2", "value": 20}},
+    {"op": "collect", "group": "w40"},
+    {"op": "repeat", "times": 20, "steps": [
+      {"op": "set", "dim": "W", "value": 73.3, "expect": {"points": {"R.p2": [73.3, 20]}}},
+      {"op": "set", "dim": "W", "value": 40, "expect": {"points": {"R.p2": [40, 20]}}},
+      {"op": "collect", "group": "w40"}
+    ]},
+    {"op": "distinct", "group": "w40", "count": 1}
+  ]
+}

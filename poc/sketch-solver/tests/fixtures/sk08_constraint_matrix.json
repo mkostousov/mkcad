@@ -1,0 +1,114 @@
+{
+  "id": "SK-08", "title": "Constraint matrix on unconstrained geometry: movement per F.3 (reference coordinates, 4 decimals)",
+  "ref": ["F61", "F62", "F63", "F64", "F67", "F109", "vmharness/results/constraint_matrix.json"],
+  "cases": [
+    {"name": "horizontal (F61)", "steps": [
+      {"op": "line", "name": "L", "a": [0, 0], "b": [30, 5]},
+      {"op": "constrain", "c": {"type": "horizontal", "line": "L"},
+       "expect": {"points": {"L.a": [-0.2069, 2.5], "L.b": [30.2069, 2.5]}, "tol": 1e-4, "same_length": ["L"]}}
+    ]},
+    {"name": "vertical (F61)", "steps": [
+      {"op": "line", "name": "L", "a": [0, 0], "b": [5, 30]},
+      {"op": "constrain", "c": {"type": "vertical", "line": "L"},
+       "expect": {"points": {"L.a": [2.5, -0.2069], "L.b": [2.5, 30.2069]}, "tol": 1e-4, "same_length": ["L"]}}
+    ]},
+    {"name": "parallel (F62)", "steps": [
+      {"op": "line", "name": "L1", "a": [0, 0], "b": [30, 4]},
+      {"op": "line", "name": "L2", "a": [0, 10], "b": [25, 20]},
+      {"op": "constrain", "c": {"type": "parallel", "l1": "L1", "l2": "L2"},
+       "expect": {"unmoved": ["L1"], "same_length": ["L2"], "points": {"L2.a": [-0.8448, 13.2207], "L2.b": [25.8448, 16.7793]}, "tol": 1e-4}}
+    ]},
+    {"name": "perpendicular (F62)", "steps": [
+      {"op": "line", "name": "L1", "a": [0, 0], "b": [30, 4]},
+      {"op": "line", "name": "L2", "a": [0, 10], "b": [25, 20]},
+      {"op": "constrain", "c": {"type": "perpendicular", "l1": "L1", "l2": "L2"},
+       "expect": {"unmoved": ["L1"], "same_length": ["L2"], "points": {"L2.a": [14.2793, 1.6552], "L2.b": [10.7207, 28.3448]}, "tol": 1e-4}}
+    ]},
+    {"name": "collinear (F62): first stays, second keeps its length", "steps": [
+      {"op": "line", "name": "L1", "a": [0, 0], "b": [30, 4]},
+      {"op": "line", "name": "L2", "a": [0, 10], "b": [25, 20]},
+      {"op": "constrain", "c": {"type": "collinear", "l1": "L1", "l2": "L2"}, "expect": {"unmoved": ["L1"], "same_length": ["L2"], "tol": 1e-9}}
+    ]},
+    {"name": "collinear with an end already on the extension rotates about it (F109; start tilted 14 deg towards L1)", "steps": [
+      {"op": "line", "name": "L1", "a": [0, 0], "b": [10, 0]},
+      {"op": "line", "name": "L2", "a": [40, 0], "b": [35, 20]},
+      {"op": "constrain", "c": {"type": "collinear", "l1": "L1", "l2": "L2"},
+       "expect": {"unmoved": ["L1", "L2.a"], "same_length": ["L2"], "points": {"L2.b": [19.384471871911696, 0]}, "tol": 1e-9}}
+    ]},
+    {"name": "collinear from exactly perpendicular (F109 reference case): rotates about the end on the extension", "steps": [
+      {"op": "line", "name": "L1", "a": [0, 0], "b": [10, 0]},
+      {"op": "line", "name": "L2", "a": [40, 0], "b": [40, 20]},
+      {"op": "constrain", "c": {"type": "collinear", "l1": "L1", "l2": "L2"},
+       "expect": {"unmoved": ["L1", "L2.a"], "same_length": ["L2"], "points": {"L2.b": [20, 0]}, "tol": 1e-9}}
+    ]},
+    {"name": "equal lines (F63): second keeps start and direction", "steps": [
+      {"op": "line", "name": "L1", "a": [0, 0], "b": [30, 4]},
+      {"op": "line", "name": "L2", "a": [0, 10], "b": [25, 20]},
+      {"op": "constrain", "c": {"type": "equal_length", "l1": "L1", "l2": "L2"},
+       "expect": {"unmoved": ["L1", "L2.a"], "points": {"L2.b": [28.1008, 21.2403]}, "tol": 1e-4}}
+    ]},
+    {"name": "coincident pt-pt (F64): second line translates", "steps": [
+      {"op": "line", "name": "L1", "a": [0, 0], "b": [30, 4]},
+      {"op": "line", "name": "L2", "a": [0, 10], "b": [25, 20]},
+      {"op": "constrain", "c": {"type": "coincident", "a": "L1.b", "b": "L2.a"},
+       "expect": {"unmoved": ["L1"], "points": {"L2.a": [30, 4], "L2.b": [55, 14]}}}
+    ]},
+    {"name": "point on line (F64): the line translates, not the point", "steps": [
+      {"op": "line", "name": "L1", "a": [0, 0], "b": [30, 4]},
+      {"op": "line", "name": "L2", "a": [0, 10], "b": [25, 20]},
+      {"op": "constrain", "c": {"type": "point_on_line", "p": "L2.a", "line": "L1"},
+       "expect": {"unmoved": ["L2"], "same_length": ["L1"], "points": {"L1.a": [-1.3101, 9.8253], "L1.b": [28.6899, 13.8253]}, "tol": 1e-4}}
+    ]},
+    {"name": "midpoint (F64): the line translates", "steps": [
+      {"op": "line", "name": "L1", "a": [0, 0], "b": [30, 4]},
+      {"op": "line", "name": "L2", "a": [0, 10], "b": [25, 20]},
+      {"op": "constrain", "c": {"type": "midpoint", "p": "L2.a", "line": "L1"},
+       "expect": {"unmoved": ["L2"], "points": {"L1.a": [-15, 8], "L1.b": [15, 12]}}}
+    ]},
+    {"name": "concentric (F63): second circle moves", "steps": [
+      {"op": "circle", "name": "C1", "center": [0, 0], "r": 10},
+      {"op": "circle", "name": "C2", "center": [3, 2], "r": 5},
+      {"op": "constrain", "c": {"type": "concentric", "c1": "C1", "c2": "C2"},
+       "expect": {"unmoved": ["C1"], "points": {"C2.c": [0, 0]}, "radius": {"C1": 10, "C2": 5}}}
+    ]},
+    {"name": "equal circles (F63): second radius changes", "steps": [
+      {"op": "circle", "name": "C1", "center": [0, 0], "r": 10},
+      {"op": "circle", "name": "C2", "center": [3, 2], "r": 5},
+      {"op": "constrain", "c": {"type": "equal_radius", "c1": "C1", "c2": "C2"},
+       "expect": {"unmoved": ["C1", "C2"], "radius": {"C1": 10, "C2": 10}}}
+    ]},
+    {"name": "tangent line-circle (F64): the line translates (pure translation; reference also rotates it by 0.3 deg)", "steps": [
+      {"op": "circle", "name": "C", "center": [0, 0], "r": 10},
+      {"op": "line", "name": "L", "a": [-20, 13], "b": [20, 15]},
+      {"op": "constrain", "c": {"type": "tangent", "line": "L", "curve": "C"},
+       "expect": {"unmoved": ["C"], "radius": {"C": 10}, "same_length": ["L"], "points": {"L.a": [-19.801121805349148, 9.022436106982937]}, "tol": 1e-9}}
+    ]},
+    {"name": "tangent line-arc keeps the centre side", "steps": [
+      {"op": "arc", "name": "A", "center": [0, 0], "start": [10, 0], "end": [0, 10]},
+      {"op": "line", "name": "L", "a": [-20, 13], "b": [20, 15]},
+      {"op": "constrain", "c": {"type": "tangent", "line": "L", "curve": "A"}, "expect": {"unmoved": ["A"], "same_length": ["L"]}},
+      {"op": "check", "expect": {"dof": 8}}
+    ]},
+    {"name": "tangent circles (external) keeps the first circle", "steps": [
+      {"op": "circle", "name": "C1", "center": [0, 0], "r": 10},
+      {"op": "circle", "name": "C2", "center": [18, 4], "r": 5},
+      {"op": "constrain", "c": {"type": "tangent_curves", "c1": "C1", "c2": "C2"}, "expect": {"unmoved": ["C1"], "radius": {"C2": 5}}}
+    ]},
+    {"name": "distance point-line keeps the side", "steps": [
+      {"op": "line", "name": "L", "a": [0, 0], "b": [30, 0]},
+      {"op": "point", "name": "P", "at": [10, 7]},
+      {"op": "constrain", "c": {"type": "distance_point_line", "p": "P", "line": "L", "value": 4},
+       "expect": {"unmoved": ["P"], "points": {"L.a": [0, 3], "L.b": [30, 3]}}}
+    ]},
+    {"name": "horizontal / vertical distance keep the side", "steps": [
+      {"op": "point", "name": "P", "at": [0, 0]},
+      {"op": "point", "name": "Q", "at": [-7, -3]},
+      {"op": "constrain", "c": {"type": "distance_h", "a": "P", "b": "Q", "value": 10}, "expect": {"unmoved": ["P"], "points": {"Q": [-10, -3]}}},
+      {"op": "constrain", "c": {"type": "distance_v", "a": "P", "b": "Q", "value": 5}, "expect": {"unmoved": ["P"], "points": {"Q": [-10, -5]}}}
+    ]},
+    {"name": "diameter changes the radius only", "steps": [
+      {"op": "circle", "name": "C", "center": [4, 5], "r": 10},
+      {"op": "constrain", "c": {"type": "diameter", "curve": "C", "value": 30}, "expect": {"unmoved": ["C.c"], "radius": {"C": 15}}}
+    ]}
+  ]
+}
