@@ -1,0 +1,65 @@
+total e8d1f1a67ecbbd83
+11b0ca31bd9a7465 dof_samples.json :: 01 point: 2
+fdbace497d889f4d dof_samples.json :: 02 free line: 4
+5dc65dfec528356c dof_samples.json :: 03 circle: 3
+fe1e44663e3882c7 dof_samples.json :: 04 arc: 5 (7 params - 2 internal)
+8f03fdc0ab346801 dof_samples.json :: 05 line + H: 3
+127efeab1ab55c74 dof_samples.json :: 06 line + H + length: 2
+5fb04b1689b2a6e0 dof_samples.json :: 07 line, fixed start + H + length: 0
+8106c0b297444323 dof_samples.json :: 08 rectangle tool (2H + 2V): 4
+fafe6e70626bbfcd dof_samples.json :: 09 rectangle on fixed origin: 2; corner/side DOF
+e2463034073e39fc dof_samples.json :: 10 SK-01 rectangle fully dimensioned: 0
+73d91e1441248273 dof_samples.json :: 11 two lines joined by coincident: 6
+27af0bf88fc5abfa dof_samples.json :: 12 two parallel lines: 7
+0a8ab5841dfdd2e5 dof_samples.json :: 13 circle + radius: 2
+4c883626ba25d275 dof_samples.json :: 14 concentric circles: 4
+1400556a819f61ae dof_samples.json :: 15 concentric + equal radius: 3 (equal + concentric = same circle twice)
+09ac12d7d4523939 dof_samples.json :: 16 line tangent to circle: 6
+31358089e2b54fa6 dof_samples.json :: 17 triangle with three lengths: 3 (rigid motion)
+8f4639c6e295c068 dof_samples.json :: 18 triangle anchored (fix + H): 0
+0231a6b5505faae8 dof_samples.json :: 19 point on circle: 4
+c37183498a51d832 dof_samples.json :: 20 midpoint: 4
+1822f701a575cd90 dof_samples.json :: 21 symmetric points about a line: 6
+b27fa22dfeabb41c dof_samples.json :: 22 arc with fixed centre and radius: 2
+4511fd4ec396dc18 dof_samples.json :: 23 angle between lines sharing a point: 5
+14537d1cef0745c7 dof_samples.json :: 24 collinear lines: 6
+1c69e2a7b9934dc9 dof_samples.json :: 25 perpendicular + equal lines sharing a point: 4
+a5463b3339253f9a s07_angle.json :: S-07
+0a118fe93bc1fbdd s16_drag.json :: free end of an under-constrained line
+009443ec5d9c517b s16_drag.json :: dragging along remaining freedom only
+30bc62db60dad442 s16_drag.json :: fully constrained rectangle corner
+30bc62db60dad442 sk01_rectangle.json :: SK-01
+dab83e25f9590019 sk02_dimension_toggle.json :: SK-02
+1469bd399fc36102 sk03_redundant_dimension.json :: SK-03
+40a52327bac2a06c sk04_invalid_values.json :: SK-04
+bcf5cae9d2fc588f sk05_conflict.json :: SK-05
+e065b2fb0e102334 sk06_degenerate.json :: SK-06
+ac2201c8af7ffa84 sk07_branch.json :: SK-07
+270e705f1e0af77d sk08_constraint_matrix.json :: horizontal (F61)
+3571c74b999d0893 sk08_constraint_matrix.json :: vertical (F61)
+edbe02535c7e5404 sk08_constraint_matrix.json :: parallel (F62)
+d9b3e289c465de6f sk08_constraint_matrix.json :: perpendicular (F62)
+1c7441a7da277749 sk08_constraint_matrix.json :: collinear (F62): first stays, second keeps its length
+a18ba9e45450e0ea sk08_constraint_matrix.json :: collinear with an end already on the extension rotates about it (F109; start tilted 14 deg towards L1)
+f5f52fef704578d2 sk08_constraint_matrix.json :: collinear from exactly perpendicular (F109 reference case): rotates about the end on the extension
+327ecd649e32d5b6 sk08_constraint_matrix.json :: equal lines (F63): second keeps start and direction
+7a947059404b0e69 sk08_constraint_matrix.json :: coincident pt-pt (F64): second line translates
+f8ebec5e95eaf5e7 sk08_constraint_matrix.json :: point on line (F64): the line translates, not the point
+8e7bdd7d8768e94a sk08_constraint_matrix.json :: midpoint (F64): the line translates
+1fe655102926f9d3 sk08_constraint_matrix.json :: concentric (F63): second circle moves
+dd6757f1423d150d sk08_constraint_matrix.json :: equal circles (F63): second radius changes
+e88fe77968c47a79 sk08_constraint_matrix.json :: tangent line-circle (F64): the line translates (pure translation; reference also rotates it by 0.3 deg)
+396d6f50ce693c1c sk08_constraint_matrix.json :: tangent line-arc keeps the centre side
+c98e1ab7b41935a4 sk08_constraint_matrix.json :: tangent circles (external) keeps the first circle
+737c67225dd94618 sk08_constraint_matrix.json :: distance point-line keeps the side
+0ff520b70090b883 sk08_constraint_matrix.json :: horizontal / vertical distance keep the side
+7d302cfff3accab2 sk08_constraint_matrix.json :: diameter changes the radius only
+4757e14350ee2a3f sk09_duplicates.json :: SK-09
+5aeccab89ba8c497 sk13_undo_redo.json :: SK-13
+86f15efcf932162c sk16_reproducible.json :: SK-16
+ee661f345ee017f2 sk17_fix_conflict.json :: SK-17
+5d5090546069992a sk18_symmetry.json :: lines
+e7af31ea03db82be sk18_symmetry.json :: points about an oblique axis
+266686c0e47867c4 sk19_rotate_scale.json :: rotate 30 deg removes H/V with a warning
+e24cab273c19dd32 sk19_rotate_scale.json :: rotate 90 deg swaps H and V
+9970d92fdff0612e sk19_rotate_scale.json :: scale x2 scales the dimension values instead of deleting them

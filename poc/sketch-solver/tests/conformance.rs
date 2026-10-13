@@ -568,3 +568,39 @@ fixtures! {
     s16_drag => "s16_drag.json",
     dof_samples => "dof_samples.json",
 }
+
+/// Cross-platform determinism (TX-DET / K-1 exit "identical on Windows + Linux"): FNV-1a digest over the
+/// final document of every fixture case, compared with `tests/golden/digest.txt`. Regenerate with
+/// `UPDATE_GOLDEN=1 cargo test --test conformance cross_platform_digest` after an intended numeric change.
+#[test]
+fn cross_platform_digest() {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
+    let mut files: Vec<_> = std::fs::read_dir(&dir).unwrap().map(|e| e.unwrap().path()).collect();
+    files.sort();
+    let mut h: u64 = 0xcbf29ce484222325;
+    let mut lines = Vec::new();
+    for f in files {
+        let fx: Value = serde_json::from_str(&std::fs::read_to_string(&f).unwrap()).unwrap();
+        let cases = fx.get("cases").and_then(Value::as_array).cloned().unwrap_or_else(|| vec![fx.clone()]);
+        for case in &cases {
+            let state = run_case(case).unwrap_or_else(|e| panic!("{}: {e}", f.display()));
+            let mut ch: u64 = 0xcbf29ce484222325;
+            for b in state.bytes() {
+                ch = (ch ^ b as u64).wrapping_mul(0x100000001b3);
+                h = (h ^ b as u64).wrapping_mul(0x100000001b3);
+            }
+            let name = case.get("name").or(fx.get("id")).and_then(Value::as_str).unwrap_or("?");
+            lines.push(format!("{ch:016x} {} :: {name}", f.file_name().unwrap().to_string_lossy()));
+        }
+    }
+    let text = format!("total {h:016x}\n{}\n", lines.join("\n"));
+    let golden = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/digest.txt");
+    if std::env::var("UPDATE_GOLDEN").is_ok() {
+        std::fs::create_dir_all(golden.parent().unwrap()).unwrap();
+        std::fs::write(&golden, &text).unwrap();
+    }
+    let want = std::fs::read_to_string(&golden)
+        .expect("golden digest missing; run with UPDATE_GOLDEN=1")
+        .replace("\r\n", "\n");
+    assert_eq!(text, want, "solved documents differ from the golden digest (platform or numeric change)");
+}
