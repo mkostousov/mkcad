@@ -379,6 +379,8 @@ load; incompatible plugins are disabled with `PLUGIN.API.INCOMPATIBLE`. Referenc
 | `DOC.MIGRATION.FAILED` | error | open | H.6 |
 | `PLUGIN.API.INCOMPATIBLE` | warning | plugin load | — |
 | `JOB.CANCELLED` | info | jobs | — |
+| `SKETCH.GEOMETRY.DEGENERATE` | warning (params: entity ids) | solver: solved but a corner is folded (e.g. collinear triangle) — [P] PoC K-1 | silent F106 |
+| `SKETCH.INPUT.INVALID` | error | sketch command with a missing / wrong-kind reference, or editing a driven dimension — [P] PoC K-1 | — |
 
 Rule: codes are append-only; a removed code stays reserved. Tests assert codes, never strings (artifact M).
 

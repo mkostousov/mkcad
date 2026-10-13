@@ -40,6 +40,14 @@ Open CASCADE exception, dynamic linking) via a thin C++ shim; UI to be decided l
 4. K-3 profile detection · then fillet robustness, accessibility spike, STEP AP242 round-trip.
 Each PoC: own folder under `mk_cad/poc/`, test-first against artifact M rows, results logged in `poc/RESULTS.md`.
 
+Status (2026-10-12):
+- **K-1 solver — PASSED.** `poc/sketch-solver/` (Rust): all SK rows in scope (SK-01…09, 13, 16…19, S-07, S-16,
+  constraint matrix F60–F67 with reference coordinates), 25 DOF samples, ≤ 25 ms worst case for 500 curves /
+  ~600 constraints (limit 50 ms), bit-identical results Windows MSVC vs Linux (WSL2), wasm32 build OK.
+  Details, decisions to review and follow-ups: `poc/RESULTS.md` § K-1. SK-10/11/12 → K-3, SK-14 → UI, SK-15 → K-2.
+- Next: K-2 topological naming on OCCT (needs the `occt-sys`/kernel crate), K-3 profile detection (can reuse the
+  sketch model of K-1), K-4 determinism at document level (the K-1 golden-digest pattern extends to it).
+
 ## Housekeeping
 - Saved document `mk_x16_persist` (Default Project) and unsaved drawing in the VM — delete only on user request.
 - VM: keep 3D OFF (drawings), 4 vCPU, DxfTranslator runtime copy in place (`C:\mkprobe\dxf_runtime_copied.txt`).
