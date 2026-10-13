@@ -141,3 +141,52 @@ request it lazily (`SolveOptions::per_entity_dof`).
 - Build output must stay outside the Synology-synced folder (`CARGO_TARGET_DIR`). Cargo could not persist
   `Cargo.toml` edits made by `cargo add` there ("Access is denied").
 - WSL2 Ubuntu now has rustup with Rust 1.99.0 (user level, `~/.cargo`), used for the Linux determinism check.
+
+## K-2 setup — OCCT kernel spike (`poc/kernel-spike/`) · smoke tests PASSED (2026-10-13)
+
+Scope: only the kernel bridge that K-2 (topological naming, REF-01…08) needs. No naming scheme yet.
+
+### What was built
+
+- `occt-sys`: C++ shim (`cpp/shim.cc`) + `cxx` bridge. Box, planar polygon extrude (prism), translate, constant-radius
+  fillet by edge index, cut, fuse, volume, validity, face/edge area/length/centroid, STEP export and import.
+  OCCT exceptions are caught in the shim and surface as Rust `Err`.
+- `kernel`: safe `Solid` API and `Model` (linear operation history: name, params, volume, face/edge counts and the
+  sub-shape mapping of each step).
+- History: every operation returns `HistoryEntry`s taken from `BRepBuilderAPI_MakeShape` (`Modified`, `Generated`,
+  `IsDeleted`) plus `Unchanged` (same `TShape` is in the result), over edges and faces, per operand.
+- OCCT 8.0.1 from vcpkg (`x64-windows`, dynamic), MSVC 14.51. The vcpkg build took 26 min and was still running
+  when this session started.
+
+### Smoke tests (`kernel/tests/smoke.rs`, 7/7)
+
+| Test | Checks |
+| --- | --- |
+| box | 20×20×20 → 8000 mm³ (tol 1e-6), 6 faces, 12 edges, valid |
+| extrude | square 20 × h 20 → 8000 mm³; 4 profile edges each generate one distinct 20×20 side face |
+| fillet | 1 vertical edge, r = 2 → 8000 − (1 − π/4)·r²·L = 7982.83 mm³; edge deleted, generates 1 face of area π/2·r·L; 4 faces modified |
+| cut | through-hole 10×10 → 6000 mm³, 10 faces; top face modified into a 300 mm² face; 4 tool walls tracked |
+| STEP | export, `MANIFOLD_SOLID_BREP` present, import → 8000 mm³ |
+| model | box → fillet → cut recorded in order, volumes strictly decrease |
+| errors | zero-size box, 2-point polygon, bad edge index, oversize fillet radius, missing file → `Err`, no crash |
+
+### OCCT 8 findings (matter for the naming work)
+
+1. **The fillet face is reachable only through `Generated(edge)` of a *deleted* edge.** A scan that skips deleted
+   edges loses the fillet face. The first version of the shim had this bug.
+2. **An edge generates a face**, so a history record needs a source kind and a destination kind (`dst_dim`).
+3. `Generated(face)` of a prism returns the solid, not the top cap. The prism's top cap is not in the per-edge
+   history (it comes from `LastShape()`); K-2 needs that explicitly.
+4. Sub-shape indices are `TopExp::MapShapes` order and valid for one shape value only. They are not a stable name.
+5. OCCT 8 API changes hit: `Standard_Failure` is a `std::exception` (`ExceptionType()`, no `DynamicType()`),
+   `TopTools_ListIteratorOfListOfShape` is gone (range-for over `NCollection_List`), `TopTools_*Map*` headers are
+   deprecated aliases.
+
+### Setup notes
+
+- Build: `CARGO_TARGET_DIR=C:\dev\cargo-target`, `OCCT_ROOT` defaults to `C:/dev/vcpkg/installed/x64-windows`.
+- Run tests with `C:\dev\vcpkg\installed\x64-windows\bin` on `PATH` (dynamic OCCT DLLs).
+- Linux/WSL build is not tried; `build.rs` would need `OCCT_ROOT` and lib names without `.lib` handled (it checks
+  `lib<name>.so`).
+- Not covered: shell/offset, variable-radius fillet, fillet failure modes on real parts, performance, determinism of
+  the history ordering across platforms (K-4).

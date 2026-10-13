@@ -1,0 +1,10 @@
+[package]
+name = "kernel"
+version = "0.1.0"
+edition = "2024"
+description = "PoC K-2: safe geometry-kernel wrapper over occt-sys with an operation history"
+publish = false
+
+[dependencies]
+occt-sys = { path = "../occt-sys" }
+cxx = "1"
