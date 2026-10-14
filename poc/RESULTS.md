@@ -349,3 +349,24 @@ a .deb. Build ≈ 10 min. Run with `OCCT_ROOT=~/vcpkg/installed/x64-linux-occt` 
 Limits / not covered: one document, one compiler per OS (no macOS, no clang, no `-march=native` or fast-math
 variants), single CPU model; OCCT parallel booleans not forced on (default thread pool); STEP text not compared
 (header carries a timestamp); shapes were not round-tripped through the saved-package format yet.
+
+## STEP AP242 round-trip spike (2026-10-13)
+
+`Solid::export_step_schema(path, "AP242DIS" | "AP214IS" | "AP203")` + `kernel/tests/step.rs` (3 tests, Windows and Linux).
+Part: extruded 60×40×25, groove, fillet r2, shell 1.5 (planes, cylinder, offset faces).
+
+| Check | Result |
+|---|---|
+| Header schema | `AP242_MANAGED_MODEL_BASED_3D_ENGINEERING_MIM_LF`, `SI_UNIT(.MILLI.,.METRE.)` |
+| Re-import | valid, same face/edge count, volume rel 1e-9, every face area rel 1e-9 |
+| Re-export of the re-imported body | volume rel 1e-12, same face count |
+| AP203 / AP214IS | selectable (`CONFIG_CONTROL_DESIGN` / `AUTOMOTIVE_DESIGN`), re-import volume < 1e-6 |
+| Unknown schema | error, not a crash |
+| DATA section, same shape exported twice | byte-identical (after the counter fix below) |
+| DATA section Windows vs Linux (K-4 document, 100 rebuilds, 8 threads) | byte-identical, 99-line report digests equal |
+
+**Finding:** OCCT appends a *per-process export counter* to the product name (`'Open CASCADE STEP translator 8.0 2'`,
+then `… 6`), so two exports of the same shape differ in DATA. The shim sets `write.step.product.name = mkcad-part`
+and strips the trailing counter after writing. The FILE_NAME header still carries a timestamp (excluded from digests).
+Not covered: colours/names/assemblies (needs XDE `TKXCAF`, not in this build), PMI, other CAD systems' readers,
+STEP units other than mm, files from foreign systems (import robustness).
