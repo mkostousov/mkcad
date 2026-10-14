@@ -7,7 +7,8 @@
 pub mod ffi {
     /// One input→output relation recorded from `BRepBuilderAPI_MakeShape` history.
     struct HistEntry {
-        /// 0 = modified, 1 = generated, 2 = deleted, 3 = unchanged (same sub-shape in the result).
+        /// 0 = modified, 1 = generated, 2 = deleted, 3 = unchanged (same sub-shape in the result),
+        /// 4 = end cap of a prism (`LastShape`, src = the profile face).
         kind: u8,
         /// Which operand: 0 = first/only argument, 1 = tool.
         arg: u8,
@@ -31,6 +32,10 @@ pub mod ffi {
         cx: f64,
         cy: f64,
         cz: f64,
+        /// Outward unit normal of a planar face; all zero for other surfaces.
+        nx: f64,
+        ny: f64,
+        nz: f64,
     }
 
     struct EdgeProps {
@@ -58,6 +63,8 @@ pub mod ffi {
         fn count_edges(a: &Shape) -> u32;
         fn face_props(a: &Shape, index: u32) -> Result<FaceProps>;
         fn edge_props(a: &Shape, index: u32) -> Result<EdgeProps>;
+        fn edge_faces(a: &Shape, index: u32) -> Result<Vec<u32>>;
+        fn shell_faces(a: &Shape, faces: &[u32], thickness: f64) -> Result<OpResult>;
 
         fn export_step(a: &Shape, path: &str) -> Result<()>;
         fn import_step(path: &str) -> Result<UniquePtr<Shape>>;
