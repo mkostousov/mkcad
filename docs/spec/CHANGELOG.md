@@ -1,8 +1,9 @@
 # Spec change log
 
 ## Draft 3 addendum — PoC K-1 (2026-10-12)
-- H.5: appended `SKETCH.GEOMETRY.DEGENERATE` (warning) and `SKETCH.INPUT.INVALID` (error), both [P] from PoC K-1
-  (`poc/RESULTS.md`).
+- H.5: appended `SKETCH.GEOMETRY.DEGENERATE` (warning) and `SKETCH.INPUT.INVALID` (error), from PoC K-1
+  (`poc/RESULTS.md`); accepted by the user 2026-10-14 together with the other K-1 decisions (tangent =
+  pure translation, collapse = conflict, degenerate rank loss = warning, sparse LDLᵀ core).
 
 ## Draft 3 (2026-10-12)
 - New artifact S (silent-outcome requirements, 16 rows) with new codes `IO.UNITS.ASSUMED`, `DOC.RECOVERY.AVAILABLE`,

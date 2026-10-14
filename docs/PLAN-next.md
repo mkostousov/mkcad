@@ -44,9 +44,13 @@ Status (2026-10-12):
 - **K-1 solver — PASSED.** `poc/sketch-solver/` (Rust): all SK rows in scope (SK-01…09, 13, 16…19, S-07, S-16,
   constraint matrix F60–F67 with reference coordinates), 25 DOF samples, ≤ 25 ms worst case for 500 curves /
   ~600 constraints (limit 50 ms), bit-identical results Windows MSVC vs Linux (WSL2), wasm32 build OK.
-  Details, decisions to review and follow-ups: `poc/RESULTS.md` § K-1. SK-10/11/12 → K-3, SK-14 → UI, SK-15 → K-2.
+  Details, decisions (accepted 2026-10-14) and follow-ups: `poc/RESULTS.md` § K-1. SK-10/11/12 → K-3, SK-14 → UI, SK-15 → K-2.
 - Next: K-2 topological naming on OCCT (needs the `occt-sys`/kernel crate), K-3 profile detection (can reuse the
   sketch model of K-1), K-4 determinism at document level (the K-1 golden-digest pattern extends to it).
+
+- 2026-10-13: OCCT build started detached: vcpkg at `C:\dev\vcpkg`, `vcpkg install opencascade:x64-windows`
+  (dynamic), log `C:\dev\vcpkg-occt.log` (last line "exit 0 end …" = done). Next session: K-2 kernel spike
+  (`occt-sys` + `kernel` crates via cxx; CARGO_TARGET_DIR outside SynologyDrive, e.g. `C:\dev\cargo-target`).
 
 ## Housekeeping
 - Saved document `mk_x16_persist` (Default Project) and unsaved drawing in the VM — delete only on user request.
