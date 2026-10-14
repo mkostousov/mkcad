@@ -284,7 +284,7 @@ digest are unchanged.
 | Case | Result |
 | --- | --- |
 | SK-01 rectangle 40×20 | 1 profile, 800 mm² |
-| SK-10 chain gap 1e-5 / 2e-5 (also 0, 5e-6, 1.1e-5 + …) | 1 / 0 profiles; 0 and 5e-6 close, 2e-5 and 1.6e-5 do not |
+| SK-10 chain gap 1e-5 / 2e-5 (also 0, 5e-6, 1.6e-5) | 1 / 0 profiles; 0 and 5e-6 close, 1.6e-5 and 2e-5 do not |
 | SK-11 side 2⁻¹⁰ and 1e6, offset 0 and 1e6 | area = stored side², rel 1e-12 |
 | SK-12 rect ⊃ circle ⊃ circle | 3 profiles, loops 2 / 2 / 1, areas exact (rel 1e-12) |
 | F74 overlapping circles | 3 regions: lens 122.84 + 2 crescents |
