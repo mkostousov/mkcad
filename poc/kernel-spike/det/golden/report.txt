@@ -1,0 +1,97 @@
+S sketch.point.3.x 0000000000000000
+S sketch.point.3.y 0000000000000000
+S sketch.point.4.x 404e000000000000
+S sketch.point.4.y 0000000000000000
+S sketch.point.5.x 404e000000000000
+S sketch.point.5.y 4044000000000000
+S sketch.point.6.x 0000000000000000
+S sketch.point.6.y 4044000000000000
+S sketch.point.34.x 4059000000000000
+S sketch.point.34.y 0000000000000000
+S sketch.point.35.x 406229999999999a
+S sketch.point.35.y 0000000000000000
+S sketch.point.36.x 406229999999999a
+S sketch.point.36.y 4030e66666666666
+S sketch.point.37.x 4059000000000000
+S sketch.point.37.y 4030e66666666666
+S profiles.count 2
+S profile.0.area 40a2c00000000000
+S profile.0.pieces 4
+S profile.1.area 4087ec8f5c28f5c4
+S profile.1.pieces 4
+S feature.base.health Healthy
+S feature.base.res []
+S feature.base.diag 
+S feature.groove.health Healthy
+S feature.groove.res []
+S feature.groove.diag 
+S feature.fillet.health Healthy
+S feature.fillet.res [Expanded(2)]
+S feature.fillet.diag 
+S feature.shell.health Healthy
+S feature.shell.res [Expanded(2)]
+S feature.shell.diag 
+S faces 12
+S edges 30
+S valid true
+N volume 40ebe8a28c59d545 5.71570796326795e4
+S face.1.labels base:side:c:7
+N face.1.area 4094c80000000000 1.33e3
+N face.1.cx 403e000000000000 3e1
+N face.1.cy 0000000000000000 0e0
+N face.1.cz 402652c454b1152c 1.1161654135338345e1
+S face.2.labels base:side:c:8
+N face.2.area 408f3921fb54442b 9.991415926535896e2
+N face.2.cx 404e000000000000 6e1
+N face.2.cy 4034044cf1e51754 2.0016799086027575e1
+N face.2.cz 4028fab2af16d7fb 1.2489644500292334e1
+S face.3.labels fillet:gen:base:cap:end|base:side:c:7
+N face.3.area 4053a28c59d5433b 7.853981633974483e1
+N face.3.cx 4047c00000000000 4.75e1
+N face.3.cy 3fe7419f246c6ef6 7.267604552648368e-1
+N face.3.cz 403845f306dc9c88 2.4273239544735162e1
+S face.4.labels base:cap:start
+N face.4.area 40a2c00000000000 2.4e3
+N face.4.cx 403e000000000000 3e1
+N face.4.cy 4034000000000000 2e1
+N face.4.cz 0000000000000000 0e0
+S face.5.labels groove:tool:x+
+N face.5.area 40717243f6a88859 2.791415926535897e2
+N face.5.cx 4041800000000000 3.5e1
+N face.5.cy 40340f64a6e1cdbf 2.0060129575851303e1
+N face.5.cz 40357d98a9ac892d 2.14906106992941e1
+S face.6.labels base:side:c:10
+N face.6.area 408f3921fb54442c 9.991415926535897e2
+N face.6.cx 0000000000000000 0e0
+N face.6.cy 4034044cf1e51754 2.0016799086027575e1
+N face.6.cz 4028fab2af16d7fb 1.2489644500292334e1
+S face.7.labels groove:tool:z-
+N face.7.area 4078ffffffffffff 3.9999999999999994e2
+N face.7.cx 403e000000000000 3e1
+N face.7.cy 4034000000000000 2e1
+N face.7.cz 4032000000000000 1.8e1
+S face.8.labels fillet:gen:base:cap:end|base:side:c:7
+N face.8.area 4053a28c59d5433b 7.853981633974483e1
+N face.8.cx 4029000000000000 1.25e1
+N face.8.cy 3fe7419f246c6ef6 7.267604552648368e-1
+N face.8.cz 403845f306dc9c88 2.4273239544735162e1
+S face.9.labels groove:tool:x-
+N face.9.area 40717243f6a88859 2.791415926535897e2
+N face.9.cx 4039000000000000 2.5e1
+N face.9.cy 40340f64a6e1cdbf 2.0060129575851303e1
+N face.9.cz 40357d98a9ac892d 2.14906106992941e1
+S face.10.labels base:side:c:9
+N face.10.area 4096580000000000 1.43e3
+N face.10.cx 403e000000000000 3e1
+N face.10.cy 4044000000000000 4e1
+N face.10.cz 40281e6efe35b4d0 1.205944055944056e1
+S face.11.labels base:cap:end
+N face.11.area 408db00000000000 9.5e2
+N face.11.cx 4047c00000000000 4.75e1
+N face.11.cy 4035000000000000 2.1e1
+N face.11.cz 4039000000000000 2.5e1
+S face.12.labels base:cap:end
+N face.12.area 408db00000000000 9.5e2
+N face.12.cx 4029000000000000 1.25e1
+N face.12.cy 4035000000000000 2.1e1
+N face.12.cz 4039000000000000 2.5e1
