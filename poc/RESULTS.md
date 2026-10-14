@@ -106,7 +106,7 @@ request it lazily (`SolveOptions::per_entity_dof`).
   golden digest over all 64 final documents is identical on `x86_64-pc-windows-msvc` and
   `x86_64-unknown-linux-gnu` (rustc 1.99.0 on both).
 
-### Decisions taken in the PoC (review)
+### Decisions taken in the PoC — ACCEPTED by the user 2026-10-14
 
 1. **Tangent line–circle** translates the line purely (minimal change). The reference also rotates it by about 0.3°
    (F64 data). Same tangency, different by up to 0.1 mm.
