@@ -11,6 +11,7 @@ pub mod doc;
 pub mod equations;
 pub mod linalg;
 pub mod model;
+pub mod profiles;
 pub mod solver;
 
 pub use diag::{Code, Diagnostic, Severity, Suggestion};

@@ -24,6 +24,9 @@ pub enum Code {
     /// Proposed addition to H.5 (SK-06): solved, but the geometry is degenerate (folded corner).
     #[serde(rename = "SKETCH.GEOMETRY.DEGENERATE")]
     GeometryDegenerate,
+    /// Proposed addition to H.5 (F.8): exact duplicate curves; tolerated, one region.
+    #[serde(rename = "SKETCH.GEOMETRY.DUPLICATE")]
+    GeometryDuplicate,
     /// Request references a missing entity or an entity of the wrong kind (API misuse).
     #[serde(rename = "SKETCH.INPUT.INVALID")]
     InputInvalid,
@@ -49,6 +52,7 @@ impl Code {
             Code::MoveConstrained => "SKETCH.MOVE.CONSTRAINED",
             Code::ConstraintRemoved => "SKETCH.CONSTRAINT.REMOVED",
             Code::GeometryDegenerate => "SKETCH.GEOMETRY.DEGENERATE",
+            Code::GeometryDuplicate => "SKETCH.GEOMETRY.DUPLICATE",
             Code::InputInvalid => "SKETCH.INPUT.INVALID",
         }
     }
@@ -56,7 +60,7 @@ impl Code {
     pub fn severity(self) -> Severity {
         match self {
             Code::MoveConstrained => Severity::Info,
-            Code::ConstraintRemoved | Code::GeometryDegenerate => Severity::Warning,
+            Code::ConstraintRemoved | Code::GeometryDegenerate | Code::GeometryDuplicate => Severity::Warning,
             _ => Severity::Error,
         }
     }
