@@ -16,8 +16,8 @@ Status legend: DONE · NEXT · TODO
 | K-1 Sketch solver PoC | Review PoC decisions (RESULTS.md) | accepted by the user 2026-10-14 | DONE |
 | K-2 OCCT kernel + topological naming | K2-1 `occt-sys` crate: C++ shim + Rust bridge, links vcpkg OCCT, box volume test | box 10×20×30 volume = 6000 rel 1e-12 | DONE (poc/occt-kernel) |
 | K-2 OCCT kernel + topological naming | K2-2 Kernel ops: extrude profile, boolean cut/fuse, fillet, with `BRepTools_History` exposed | ops return shape + history (generated/modified/deleted) | DONE (7 history tests) |
-| K-2 OCCT kernel + topological naming | K2-3 Naming model per G.4: labels from sketch IDs + history, resolution exact/expanded/lost | unit tests per G.4 step | NEXT |
-| K-2 OCCT kernel + topological naming | K2-4 Replay REF-01…REF-08 | all REF rows resolve per G.4 | TODO |
+| K-2 OCCT kernel + topological naming | K2-3 Naming model per G.4: labels from sketch IDs + history, resolution exact/expanded/lost | unit tests per G.4 step | DONE (poc/occt-kernel/src/naming.rs, 12 tests; label model is pure logic, not yet wired to kernel history - wiring in K2-4; needs-user-review: string labels, fixed 1e-6 signature tol, edge label = first face label) |
+| K-2 OCCT kernel + topological naming | K2-4 Replay REF-01…REF-08 | all REF rows resolve per G.4 | NEXT |
 | K-2 OCCT kernel + topological naming | K2-5 STEP AP242 round-trip + fillet robustness smoke | IO-01 subset | TODO |
 | K-3 Profile detection | K3-1 Planar arrangement over sketch curves (lines/arcs/circles), tol_lin 1e-5 mm | SK-10 1/0 profiles | TODO |
 | K-3 Profile detection | K3-2 Region/loop extraction with holes, duplicate curves warning | SK-11 exact areas, SK-12 3 profiles | TODO |
@@ -45,3 +45,7 @@ Status legend: DONE · NEXT · TODO
 | Python API | PyO3 module over CommandBus (N.2a-7: API = GUI) | scripted SK-01 identical to GUI | TODO |
 | Web edition | solver + wgpu in browser, OCCT remote kernel service behind `IGeometryKernel` | sketch demo in browser | TODO |
 | AI assistance | assistant acting only via undoable commands (ONNX/candle or cloud) | every AI action undoable | TODO |
+
+## Jira sync
+
+Jira project MKCAD does not exist on mikhako.atlassian.net (checked 2026-10-14); the Atlassian connector cannot create projects. Create it manually (key MKCAD, Jira Software), then sync this table.

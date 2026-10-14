@@ -8,6 +8,8 @@
 
 use std::ptr::NonNull;
 
+pub mod naming;
+
 mod ffi {
     #[repr(C)]
     pub struct mk_shape {
