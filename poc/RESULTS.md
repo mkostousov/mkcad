@@ -370,3 +370,21 @@ then `… 6`), so two exports of the same shape differ in DATA. The shim sets `w
 and strips the trailing counter after writing. The FILE_NAME header still carries a timestamp (excluded from digests).
 Not covered: colours/names/assemblies (needs XDE `TKXCAF`, not in this build), PMI, other CAD systems' readers,
 STEP units other than mm, files from foreign systems (import robustness).
+
+## Fillet robustness spike (2026-10-13)
+
+`kernel/tests/fillet.rs` (5 tests, Windows MSVC) on a 60×40×25 block, groove 10 mm wide:
+
+| Case | Result |
+|---|---|
+| radius sweep 1e-4 … 24 mm on one top edge | all succeed, valid, volume = V − (1−π/4)·r²·L to 1e-6 rel, 7 faces |
+| r = 25 (= height), 40, 1000, 0, −1 | `fillet: operation not done` (error, no crash, no invalid solid) |
+| four top edges r = 0.5, 2, 8, 15 | valid; loss ≤ sum of straight fillets; 10 faces |
+| four vertical edges r = 6, then 8-edge top rim r = 2 | valid, volume decreases |
+| groove floor edges r = 1, 4, 4.9 | valid |
+| groove floor edges r = 6 (> half width, collision) | error |
+
+Observations: failures are reported only as "operation not done" — the shim does not distinguish radius-too-large,
+collision or topology failure (needs `BRepFilletAPI_MakeFillet::NbFaultyContours/FaultyContour` mapped to H.5 codes).
+Variable radius, chamfer, setback corners, fillets across tangent chains and on imported STEP bodies are not covered.
+Linux not run for this suite (K-4 digest already covers one fillet).
