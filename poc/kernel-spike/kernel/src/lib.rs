@@ -36,6 +36,8 @@ pub enum Relation {
     Generated,
     Deleted,
     Unchanged,
+    /// End cap of a prism (`LastShape` of the sweep).
+    SweepEnd,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -63,6 +65,7 @@ impl From<&ffi::HistEntry> for HistoryEntry {
                 0 => Relation::Modified,
                 1 => Relation::Generated,
                 2 => Relation::Deleted,
+                4 => Relation::SweepEnd,
                 _ => Relation::Unchanged,
             },
             arg: h.arg,
@@ -77,6 +80,8 @@ impl From<&ffi::HistEntry> for HistoryEntry {
 pub struct FaceInfo {
     pub area: f64,
     pub center: [f64; 3],
+    /// Outward unit normal for a planar face, `None` otherwise.
+    pub normal: Option<[f64; 3]>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -109,6 +114,16 @@ impl Solid {
         Ok(split(ffi::fillet_edges(&self.0, edges, radius)?))
     }
 
+    /// Hollows the solid inward by `thickness`, removing the 1-based `faces`.
+    pub fn shell(&self, faces: &[u32], thickness: f64) -> Result<(Solid, Vec<HistoryEntry>)> {
+        Ok(split(ffi::shell_faces(&self.0, faces, thickness)?))
+    }
+
+    /// 1-based faces adjacent to the 1-based edge.
+    pub fn edge_faces(&self, edge: u32) -> Result<Vec<u32>> {
+        Ok(ffi::edge_faces(&self.0, edge)?)
+    }
+
     pub fn cut(&self, tool: &Solid) -> Result<(Solid, Vec<HistoryEntry>)> {
         Ok(split(ffi::boolean_cut(&self.0, &tool.0)?))
     }
@@ -135,7 +150,9 @@ impl Solid {
 
     pub fn face(&self, index: u32) -> Result<FaceInfo> {
         let p = ffi::face_props(&self.0, index)?;
-        Ok(FaceInfo { area: p.area, center: [p.cx, p.cy, p.cz] })
+        let n = [p.nx, p.ny, p.nz];
+        let normal = (n != [0.0; 3]).then_some(n);
+        Ok(FaceInfo { area: p.area, center: [p.cx, p.cy, p.cz], normal })
     }
 
     pub fn edge(&self, index: u32) -> Result<EdgeInfo> {
@@ -248,3 +265,5 @@ impl Model {
         self.commit("fuse", &[], s, h)
     }
 }
+
+pub mod naming;

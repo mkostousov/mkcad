@@ -190,3 +190,70 @@ Scope: only the kernel bridge that K-2 (topological naming, REF-01…08) needs. 
   `lib<name>.so`).
 - Not covered: shell/offset, variable-radius fillet, fillet failure modes on real parts, performance, determinism of
   the history ordering across platforms (K-4).
+
+## K-2 — topological naming on OCCT history · REF-01…08 PASSED (2026-10-13)
+
+Code: `poc/kernel-spike/kernel/src/naming.rs`, tests `kernel/tests/naming.rs` (10/10; the 7 kernel smoke tests still pass).
+Scheme = G.4 steps 1–5 on extrude + box cut + fillet + shell + sketch-on-face.
+
+### Scheme as built
+
+1. **Face labels from authoritative inputs:** extrude → `f:side:<profile curve id>`, `f:cap:start`, `f:cap:end`; cut →
+   `f:tool:<x-|x+|y-|…>` from the tool box definition; fillet/shell-generated faces → `f:gen:<source label(s)>`.
+   OCCT indices are used only inside one rebuild.
+2. **History propagation:** a result face inherits the label set of every input face that maps to it (modified /
+   unchanged); a split face's pieces all keep the label.
+3. **Descriptor:** a face label, or for an edge the sorted pair of the two adjacent face labels (derived, so edges
+   need no history of their own), plus a signature (kind, centroid, normal, area/length).
+4. **Resolution:** all faces/edges carrying the label → `exact` (1) or `expanded(n)`; none → signature within
+   1e-6 → `signature` (1 hit) / `ambiguous` (>1) / `lost`.
+5. **Recompute:** `Timeline::rebuild()` replays features from scratch; a feature with a lost/ambiguous reference
+   reports `REF.LOST` / `REF.AMBIGUOUS`, health Error, and the previous body continues ("cached geometry").
+   Descriptors are never overwritten, so removing the cause recovers automatically (F44).
+
+### Replay of M.1 REF cases
+
+| Case | Test | Result |
+| --- | --- | --- |
+| REF-01 unrelated upstream insert | hole inserted before the fillet | `exact`, volume = box − fillet − hole |
+| REF-02 edge split | groove splits the top edge | `expanded(2)`, both 8 mm pieces filleted, valid |
+| REF-03 edge removed → recovers | corner cut removes the vertical edge; then cut suppressed | `lost` + `REF.LOST`, body = pre-fillet; then `exact`, original fillet volume |
+| REF-04 sketch on face, resized | extrude height 20 → 30 | plane follows to z = 30, `exact` |
+| REF-05 face deleted under sketch | slab cut removes the top face | `lost`, `SKETCH.REF.LOST`, cached plane z = 20 |
+| REF-06 split support | groove splits the top face | policy Single → `ambiguous` + `REF.AMBIGUOUS`; policy AllPieces (coplanar) → `expanded(2)`; never a silent pick |
+| REF-07 shell face split | groove, then shell on the pre-groove top ref | `expanded(2)`, both faces removed, valid |
+| REF-08 split edge re-merged | groove suppressed | `expanded(2)` → `exact` |
+| extra: signature fallback | profile curve ids renamed, geometry same | `signature` |
+| extra: determinism | two rebuilds | identical reports, volume, labels |
+
+### Findings
+
+1. **History was complete enough** for extrude, box cut, fillet and shell on these cases, once three OCCT quirks are
+   handled in the adapter: the fillet face only appears as `Generated` of a *deleted* edge; the prism end cap only
+   via `LastShape()`; `Generated` for an edge yields a *face*.
+2. **A shell leaves rim faces.** Removing a face does not remove everything in its plane: a ring-shaped rim of wall
+   thickness stays there (160 − 6×18 = 52 mm² per piece) and inherits the removed face's label. Whether a later
+   reference to "the removed face" should resolve to the rim is a product decision.
+3. **Edge labels derived from the two face labels** make REF-02/08 fall out without edge history, but two different
+   edges between the same pair of face labels (a face split into two pieces that both touch the same neighbour)
+   cannot be told apart: they always expand together. That is the spec's wanted behaviour for F42, but it also means
+   one of two *deliberately* distinct edges cannot be addressed alone. The signature does not help (label match wins).
+4. **A face with several labels** is supported in the data model but the edge pair uses the smallest label. A merge
+   op (fuse of coplanar faces) would need the descriptor to carry all of them. Not exercised.
+
+### Decisions to review
+
+- `PiecePolicy` is per consuming feature (Single → `REF.AMBIGUOUS`, AllPieces needs coplanar pieces). The PoC does
+  not decide which features take which policy.
+- A failed reference leaves the previous body in place and flags the feature Error (F43 wording "using cached
+  geometry"), rather than rolling the whole timeline back (E-state-machines rollback is not modelled).
+- Signature tolerance is a fixed 1e-6 absolute; the real one must come from the document units/tolerance (G.6).
+
+### Not covered
+
+- Fuse/merge, revolve, pattern, mirror, chamfer, draft, hole features; non-planar splits; curved support faces for
+  sketches; variable fillets.
+- Kernel failure modes inside rebuild (only mapped to `KERNEL.OP.FAILED`), performance of rebuild at 50 features
+  (roadmap M11 target < 1 s), cross-platform determinism of labels (K-4).
+- The label strings are test-visible only; the H.3.9 `GeneratedLabel{feature, role, key, splitIndex}` shape is not
+  produced yet.

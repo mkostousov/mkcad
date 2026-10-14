@@ -8,7 +8,12 @@
 #include <BRepBuilderAPI_Transform.hxx>
 #include <BRepCheck_Analyzer.hxx>
 #include <BRepFilletAPI_MakeFillet.hxx>
+#include <BRepAdaptor_Surface.hxx>
 #include <BRepGProp.hxx>
+#include <BRepOffsetAPI_MakeThickSolid.hxx>
+#include <GeomAbs_SurfaceType.hxx>
+#include <TopTools_IndexedDataMapOfShapeListOfShape.hxx>
+#include <gp_Pln.hxx>
 #include <BRepPrimAPI_MakeBox.hxx>
 #include <BRepPrimAPI_MakePrism.hxx>
 #include <GProp_GProps.hxx>
@@ -129,6 +134,13 @@ OpResult extrude_polygon(rust::Slice<const double> xy, double height) {
     OpResult r;
     r.shape = wrap(prism.Shape());
     collect(prism, 0, face.Face(), prism.Shape(), r.history);
+    {
+      // The end cap is `LastShape()` of the sweep, not in the per-edge history (kind 4).
+      TopTools_IndexedMapOfShape faces;
+      TopExp::MapShapes(prism.Shape(), TopAbs_FACE, faces);
+      int d = faces.FindIndex(prism.LastShape());
+      if (d > 0) r.history.push_back(HistEntry{4, 0, 2, 1, 2, static_cast<uint32_t>(d)});
+    }
     return r;
   });
 }
@@ -197,7 +209,17 @@ FaceProps face_props(const Shape& a, uint32_t index) {
     GProp_GProps p;
     BRepGProp::SurfaceProperties(sub_shape(a, TopAbs_FACE, index), p);
     gp_Pnt c = p.CentreOfMass();
-    return FaceProps{p.Mass(), c.X(), c.Y(), c.Z()};
+    double nx = 0, ny = 0, nz = 0;
+    const TopoDS_Face f = TopoDS::Face(sub_shape(a, TopAbs_FACE, index));
+    BRepAdaptor_Surface surf(f);
+    if (surf.GetType() == GeomAbs_Plane) {
+      gp_Dir n = surf.Plane().Axis().Direction();
+      if (f.Orientation() == TopAbs_REVERSED) n.Reverse();
+      nx = n.X();
+      ny = n.Y();
+      nz = n.Z();
+    }
+    return FaceProps{p.Mass(), c.X(), c.Y(), c.Z(), nx, ny, nz};
   });
 }
 
@@ -207,6 +229,37 @@ EdgeProps edge_props(const Shape& a, uint32_t index) {
     BRepGProp::LinearProperties(sub_shape(a, TopAbs_EDGE, index), p);
     gp_Pnt c = p.CentreOfMass();
     return EdgeProps{p.Mass(), c.X(), c.Y(), c.Z()};
+  });
+}
+
+rust::Vec<uint32_t> edge_faces(const Shape& a, uint32_t index) {
+  return guard([&] {
+    TopTools_IndexedDataMapOfShapeListOfShape anc;
+    TopExp::MapShapesAndAncestors(a.s, TopAbs_EDGE, TopAbs_FACE, anc);
+    TopTools_IndexedMapOfShape faces;
+    TopExp::MapShapes(a.s, TopAbs_FACE, faces);
+    int ei = anc.FindIndex(sub_shape(a, TopAbs_EDGE, index));
+    rust::Vec<uint32_t> out;
+    if (ei == 0) return out;
+    for (const TopoDS_Shape& f : anc(ei)) {
+      int fi = faces.FindIndex(f);
+      if (fi > 0) out.push_back(static_cast<uint32_t>(fi));
+    }
+    return out;
+  });
+}
+
+OpResult shell_faces(const Shape& a, rust::Slice<const uint32_t> faces, double thickness) {
+  return guard([&] {
+    TopTools_ListOfShape closing;
+    for (uint32_t f : faces) closing.Append(sub_shape(a, TopAbs_FACE, f));
+    BRepOffsetAPI_MakeThickSolid mk;
+    mk.MakeThickSolidByJoin(a.s, closing, -thickness, 1e-3);
+    require_done(mk, "shell");
+    OpResult r;
+    r.shape = wrap(mk.Shape());
+    collect(mk, 0, a.s, mk.Shape(), r.history);
+    return r;
   });
 }
 

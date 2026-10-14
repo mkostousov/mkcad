@@ -34,6 +34,10 @@ bool is_valid(const Shape& a);
 uint32_t count_faces(const Shape& a);
 uint32_t count_edges(const Shape& a);
 FaceProps face_props(const Shape& a, uint32_t index);
+// 1-based indices of the faces adjacent to edge `index`.
+rust::Vec<uint32_t> edge_faces(const Shape& a, uint32_t index);
+// Hollow `a` inward by `thickness`, removing the given 1-based faces.
+OpResult shell_faces(const Shape& a, rust::Slice<const uint32_t> faces, double thickness);
 EdgeProps edge_props(const Shape& a, uint32_t index);
 
 void export_step(const Shape& a, rust::Str path);
