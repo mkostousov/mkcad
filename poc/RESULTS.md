@@ -321,3 +321,31 @@ digest are unchanged.
   0.9e-5 apart whose endpoints are far from each other is not collapsed.
 - Profile ↔ extrude hand-off (K-2 `ProfilePoint` list) is manual in the tests; a conversion `Profile → polygon with
   curve ids` for line-only loops would be the first step of the integration.
+
+## K-4 — document-level determinism (2026-10-13)
+
+`kernel-spike/det` (`det run | det compare`): one document is rebuilt from scratch N times — sketch commands
+(rectangle + dims + Fix, width toggled ×10, second under-constrained rectangle dragged ×10) → solve → profile
+detection → timeline (extrude → groove → fillet → shell, refs by label) → canonical report (97 lines).
+`S` lines (solved coordinates as f64 bits, profile areas, labels, resolutions, counts) must be bit-identical;
+`N` lines (OCCT volume, face areas, centroids) must agree to rel 1e-12 (TX-DET).
+
+| Check | Result |
+|---|---|
+| Windows MSVC, 101 rebuilds, 1 thread | 0 mismatches |
+| Windows, 105 rebuilds on 8 threads | 0 mismatches |
+| Linux (WSL2 Ubuntu 22.04, gcc, OCCT 8.0.1 same vcpkg commit), 101 rebuilds | 0 mismatches |
+| Linux, 105 rebuilds on 8 threads | 0 mismatches |
+| Windows vs Linux report | 97 lines; strict 0 differences; numeric worst rel **0** (all bit-identical) |
+
+Digest strict `b2ed073592a780e4`, numeric `c09c9a0c3828f3b6`; golden report `kernel-spike/det/golden/report.txt`.
+Cost: ~27 ms per full rebuild incl. sketch (Linux release). Final body: 12 faces, 30 edges, volume 57157.08 mm³.
+
+Linux OCCT setup (no sudo): vcpkg checkout at the same commit as Windows, overlay port with
+`BUILD_MODULE_Visualization/ApplicationFramework=OFF` and `opengl` dependency removed, overlay triplet
+`x64-linux-occt` adding user-space X11/GL headers (TKService still compiles via DataExchange), `zip` unpacked from
+a .deb. Build ≈ 10 min. Run with `OCCT_ROOT=~/vcpkg/installed/x64-linux-occt` and `LD_LIBRARY_PATH=…/lib`.
+
+Limits / not covered: one document, one compiler per OS (no macOS, no clang, no `-march=native` or fast-math
+variants), single CPU model; OCCT parallel booleans not forced on (default thread pool); STEP text not compared
+(header carries a timestamp); shapes were not round-tripped through the saved-package format yet.

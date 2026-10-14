@@ -1,0 +1,10 @@
+[package]
+name = "det"
+version = "0.1.0"
+edition = "2024"
+description = "PoC K-4: document-level determinism harness (sketch solve -> profile -> timeline -> digest)"
+publish = false
+
+[dependencies]
+kernel = { path = "../kernel" }
+sketch-solver = { path = "../../sketch-solver" }
