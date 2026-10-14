@@ -11,3 +11,7 @@ vmharness/sessions/
 vmharness/inventory/
 __pycache__/
 .resume
+
+# Scratch logs written by agents
+*_log.txt
+test_output.txt
