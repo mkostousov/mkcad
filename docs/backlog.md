@@ -14,9 +14,9 @@ Status legend: DONE · NEXT · TODO
 |---|---|---|---|
 | K-1 Sketch solver PoC | Own Rust solver, fixtures, bench, determinism | SK-01…09,13,16…19; ≤50 ms; Win=Linux bits | DONE |
 | K-1 Sketch solver PoC | Review PoC decisions (RESULTS.md) | accepted by the user 2026-10-14 | DONE |
-| K-2 OCCT kernel + topological naming | K2-1 `occt-sys` crate: C++ shim + Rust bridge, links vcpkg OCCT, box volume test | box 10×20×30 volume = 6000 rel 1e-12 | NEXT |
-| K-2 OCCT kernel + topological naming | K2-2 Kernel ops: extrude profile, boolean cut/fuse, fillet, with `BRepTools_History` exposed | ops return shape + history (generated/modified/deleted) | TODO |
-| K-2 OCCT kernel + topological naming | K2-3 Naming model per G.4: labels from sketch IDs + history, resolution exact/expanded/lost | unit tests per G.4 step | TODO |
+| K-2 OCCT kernel + topological naming | K2-1 `occt-sys` crate: C++ shim + Rust bridge, links vcpkg OCCT, box volume test | box 10×20×30 volume = 6000 rel 1e-12 | DONE (poc/occt-kernel) |
+| K-2 OCCT kernel + topological naming | K2-2 Kernel ops: extrude profile, boolean cut/fuse, fillet, with `BRepTools_History` exposed | ops return shape + history (generated/modified/deleted) | DONE (7 history tests) |
+| K-2 OCCT kernel + topological naming | K2-3 Naming model per G.4: labels from sketch IDs + history, resolution exact/expanded/lost | unit tests per G.4 step | NEXT |
 | K-2 OCCT kernel + topological naming | K2-4 Replay REF-01…REF-08 | all REF rows resolve per G.4 | TODO |
 | K-2 OCCT kernel + topological naming | K2-5 STEP AP242 round-trip + fillet robustness smoke | IO-01 subset | TODO |
 | K-3 Profile detection | K3-1 Planar arrangement over sketch curves (lines/arcs/circles), tol_lin 1e-5 mm | SK-10 1/0 profiles | TODO |
