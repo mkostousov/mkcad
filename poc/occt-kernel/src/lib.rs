@@ -1,6 +1,10 @@
 //! Thin shim crate for PoC K-2: Rust bindings to OpenCASCADE (OCCT 8.0.1).
 //!
 //! Geometry stays in OCCT (C++), Rust holds opaque handles and provides a safe interface.
+//!
+//! ## Sub-shape Indexing
+//! Faces, edges, and vertices are indexed 0..n-1 in the order of `TopExp::MapShapes`.
+//! This corresponds to OCCT's 1-based indexing minus 1.
 
 use std::ptr::NonNull;
 
@@ -10,7 +14,13 @@ mod ffi {
         _opaque: [u8; 0],
     }
 
+    #[repr(C)]
+    pub struct mk_op {
+        _opaque: [u8; 0],
+    }
+
     unsafe extern "C" {
+        // Original functions
         pub fn mk_box(dx: f64, dy: f64, dz: f64) -> *mut mk_shape;
         pub fn mk_cylinder(r: f64, h: f64) -> *mut mk_shape;
         pub fn mk_cut(a: *const mk_shape, b: *const mk_shape) -> *mut mk_shape;
@@ -20,6 +30,41 @@ mod ffi {
         pub fn mk_count(s: *const mk_shape, kind: i32) -> i32;
         pub fn mk_is_valid(s: *const mk_shape) -> i32;
         pub fn mk_free(s: *mut mk_shape);
+
+        // New functions
+        pub fn mk_translate(s: *const mk_shape, dx: f64, dy: f64, dz: f64) -> *mut mk_shape;
+        pub fn mk_cylinder_at(x: f64, y: f64, z: f64, r: f64, h: f64) -> *mut mk_shape;
+        pub fn mk_prism_polygon(xy: *const f64, n: i32, h: f64) -> *mut mk_shape;
+
+        // Operation functions
+        pub fn mk_op_cut(a: *const mk_shape, b: *const mk_shape) -> *mut mk_op;
+        pub fn mk_op_fuse(a: *const mk_shape, b: *const mk_shape) -> *mut mk_op;
+        pub fn mk_op_fillet(s: *const mk_shape, edge_idx: *const i32, n: i32, r: f64)
+        -> *mut mk_op;
+        pub fn mk_op_prism_polygon(xy: *const f64, n: i32, h: f64) -> *mut mk_op;
+        pub fn mk_op_shape(op: *const mk_op) -> *mut mk_shape;
+        pub fn mk_op_free(op: *mut mk_op);
+        pub fn mk_op_modified(
+            op: *const mk_op,
+            operand: i32,
+            kind: i32,
+            index: i32,
+            out: *mut i32,
+            cap: i32,
+        ) -> i32;
+        pub fn mk_op_generated(
+            op: *const mk_op,
+            operand: i32,
+            kind: i32,
+            index: i32,
+            out_kind: *mut i32,
+            out: *mut i32,
+            cap: i32,
+        ) -> i32;
+        pub fn mk_op_is_deleted(op: *const mk_op, operand: i32, kind: i32, index: i32) -> i32;
+
+        // Face info function
+        pub fn mk_face_info(s: *const mk_shape, index: i32, out7: *mut f64) -> i32;
     }
 }
 
@@ -38,6 +83,28 @@ impl std::fmt::Display for KernelError {
 }
 
 impl std::error::Error for KernelError {}
+
+/// Sub-shape kind enumeration.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Kind {
+    Face = 0,
+    Edge = 1,
+    Vertex = 2,
+}
+
+impl Kind {
+    fn as_i32(self) -> i32 {
+        self as i32
+    }
+}
+
+/// Information about a face.
+#[derive(Debug, Clone, Copy)]
+pub struct FaceInfo {
+    pub area: f64,
+    pub centroid: [f64; 3],
+    pub normal: [f64; 3],
+}
 
 /// Safe wrapper for OCCT shapes.
 pub struct Shape(NonNull<ffi::mk_shape>);
@@ -160,8 +227,245 @@ impl Shape {
             }
         }
     }
+
+    /// Translate the shape by the given displacement.
+    pub fn translate(&self, dx: f64, dy: f64, dz: f64) -> Result<Shape, KernelError> {
+        unsafe {
+            let ptr = ffi::mk_translate(self.0.as_ptr(), dx, dy, dz);
+            NonNull::new(ptr)
+                .map(Shape)
+                .ok_or(KernelError::OpFailed("mk_translate"))
+        }
+    }
+
+    /// Create a cylinder at the given position (axis along +Z).
+    pub fn cylinder_at(x: f64, y: f64, z: f64, r: f64, h: f64) -> Result<Shape, KernelError> {
+        unsafe {
+            let ptr = ffi::mk_cylinder_at(x, y, z, r, h);
+            NonNull::new(ptr)
+                .map(Shape)
+                .ok_or(KernelError::OpFailed("mk_cylinder_at"))
+        }
+    }
+
+    /// Create a prism from a polygon.
+    /// The polygon is defined by n points in the z=0 plane, and is extruded by h along +Z.
+    pub fn prism_polygon(points: &[(f64, f64)], h: f64) -> Result<Shape, KernelError> {
+        if points.is_empty() {
+            return Err(KernelError::OpFailed("prism_polygon: empty points"));
+        }
+
+        let mut xy = Vec::with_capacity(points.len() * 2);
+        for (x, y) in points {
+            xy.push(*x);
+            xy.push(*y);
+        }
+
+        unsafe {
+            let ptr = ffi::mk_prism_polygon(xy.as_ptr(), points.len() as i32, h);
+            NonNull::new(ptr)
+                .map(Shape)
+                .ok_or(KernelError::OpFailed("mk_prism_polygon"))
+        }
+    }
+
+    /// Count sub-shapes of the given kind.
+    pub fn count(&self, kind: Kind) -> Result<usize, KernelError> {
+        unsafe {
+            let count = ffi::mk_count(self.0.as_ptr(), kind.as_i32());
+            if count < 0 {
+                Err(KernelError::OpFailed("mk_count"))
+            } else {
+                Ok(count as usize)
+            }
+        }
+    }
+
+    /// Get face information.
+    pub fn face_info(&self, index: usize) -> Result<FaceInfo, KernelError> {
+        unsafe {
+            let mut out = [0.0f64; 7];
+            let result = ffi::mk_face_info(self.0.as_ptr(), index as i32, out.as_mut_ptr());
+            if result == 0 {
+                Ok(FaceInfo {
+                    area: out[0],
+                    centroid: [out[1], out[2], out[3]],
+                    normal: [out[4], out[5], out[6]],
+                })
+            } else {
+                Err(KernelError::OpFailed("mk_face_info"))
+            }
+        }
+    }
 }
 
 // Safety: Shape holds a NonNull which is Send + Sync
 unsafe impl Send for Shape {}
 unsafe impl Sync for Shape {}
+
+/// Operation result with history tracking.
+pub struct Op(NonNull<ffi::mk_op>);
+
+impl Drop for Op {
+    fn drop(&mut self) {
+        unsafe {
+            ffi::mk_op_free(self.0.as_mut());
+        }
+    }
+}
+
+impl Op {
+    /// Get the result shape.
+    pub fn shape(&self) -> Result<Shape, KernelError> {
+        unsafe {
+            let ptr = ffi::mk_op_shape(self.0.as_ptr());
+            NonNull::new(ptr)
+                .map(Shape)
+                .ok_or(KernelError::OpFailed("mk_op_shape"))
+        }
+    }
+
+    /// Get indices of result shapes that the input sub-shape was modified into.
+    /// Returns the indices in the result's indexing of the same kind.
+    pub fn modified(
+        &self,
+        operand: usize,
+        kind: Kind,
+        index: usize,
+    ) -> Result<Vec<usize>, KernelError> {
+        unsafe {
+            let mut out = vec![0i32; 256];
+            let count = ffi::mk_op_modified(
+                self.0.as_ptr(),
+                operand as i32,
+                kind.as_i32(),
+                index as i32,
+                out.as_mut_ptr(),
+                out.len() as i32,
+            );
+            if count < 0 {
+                Err(KernelError::OpFailed("mk_op_modified"))
+            } else {
+                Ok(out[..count as usize].iter().map(|&x| x as usize).collect())
+            }
+        }
+    }
+
+    /// Get indices of result shapes that the input sub-shape was generated into.
+    /// Returns the indices and kinds of the generated shapes.
+    pub fn generated(
+        &self,
+        operand: usize,
+        kind: Kind,
+        index: usize,
+    ) -> Result<Vec<(Kind, usize)>, KernelError> {
+        unsafe {
+            let mut out = vec![0i32; 256];
+            let mut out_kind = vec![0i32; 256];
+            let count = ffi::mk_op_generated(
+                self.0.as_ptr(),
+                operand as i32,
+                kind.as_i32(),
+                index as i32,
+                out_kind.as_mut_ptr(),
+                out.as_mut_ptr(),
+                out.len() as i32,
+            );
+            if count < 0 {
+                Err(KernelError::OpFailed("mk_op_generated"))
+            } else {
+                Ok(out[..count as usize]
+                    .iter()
+                    .zip(out_kind[..count as usize].iter())
+                    .map(|(&idx, &k)| {
+                        let kind = match k {
+                            0 => Kind::Face,
+                            1 => Kind::Edge,
+                            2 => Kind::Vertex,
+                            _ => Kind::Face, // fallback
+                        };
+                        (kind, idx as usize)
+                    })
+                    .collect())
+            }
+        }
+    }
+
+    /// Check if the input sub-shape was deleted.
+    pub fn is_deleted(
+        &self,
+        operand: usize,
+        kind: Kind,
+        index: usize,
+    ) -> Result<bool, KernelError> {
+        unsafe {
+            let result =
+                ffi::mk_op_is_deleted(self.0.as_ptr(), operand as i32, kind.as_i32(), index as i32);
+            match result {
+                0 => Ok(false),
+                1 => Ok(true),
+                _ => Err(KernelError::OpFailed("mk_op_is_deleted")),
+            }
+        }
+    }
+
+    /// Create a cut operation result.
+    pub fn cut(a: &Shape, b: &Shape) -> Result<Op, KernelError> {
+        unsafe {
+            let ptr = ffi::mk_op_cut(a.0.as_ptr(), b.0.as_ptr());
+            NonNull::new(ptr)
+                .map(Op)
+                .ok_or(KernelError::OpFailed("mk_op_cut"))
+        }
+    }
+
+    /// Create a fuse operation result.
+    pub fn fuse(a: &Shape, b: &Shape) -> Result<Op, KernelError> {
+        unsafe {
+            let ptr = ffi::mk_op_fuse(a.0.as_ptr(), b.0.as_ptr());
+            NonNull::new(ptr)
+                .map(Op)
+                .ok_or(KernelError::OpFailed("mk_op_fuse"))
+        }
+    }
+
+    /// Create a fillet operation result.
+    pub fn fillet(s: &Shape, edge_indices: &[usize], radius: f64) -> Result<Op, KernelError> {
+        let edge_idx: Vec<i32> = edge_indices.iter().map(|&i| i as i32).collect();
+        unsafe {
+            let ptr = ffi::mk_op_fillet(
+                s.0.as_ptr(),
+                edge_idx.as_ptr(),
+                edge_idx.len() as i32,
+                radius,
+            );
+            NonNull::new(ptr)
+                .map(Op)
+                .ok_or(KernelError::OpFailed("mk_op_fillet"))
+        }
+    }
+
+    /// Create a prism operation result.
+    pub fn prism_polygon(points: &[(f64, f64)], height: f64) -> Result<Op, KernelError> {
+        if points.is_empty() {
+            return Err(KernelError::OpFailed("prism_polygon: empty points"));
+        }
+
+        let mut xy = Vec::with_capacity(points.len() * 2);
+        for (x, y) in points {
+            xy.push(*x);
+            xy.push(*y);
+        }
+
+        unsafe {
+            let ptr = ffi::mk_op_prism_polygon(xy.as_ptr(), points.len() as i32, height);
+            NonNull::new(ptr)
+                .map(Op)
+                .ok_or(KernelError::OpFailed("mk_op_prism_polygon"))
+        }
+    }
+}
+
+// Safety: Op holds a NonNull which is Send + Sync
+unsafe impl Send for Op {}
+unsafe impl Sync for Op {}
