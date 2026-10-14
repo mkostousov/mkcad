@@ -257,3 +257,67 @@ Scheme = G.4 steps 1–5 on extrude + box cut + fillet + shell + sketch-on-face.
   (roadmap M11 target < 1 s), cross-platform determinism of labels (K-4).
 - The label strings are test-visible only; the H.3.9 `GeneratedLabel{feature, role, key, splitIndex}` shape is not
   produced yet.
+
+## K-3 — profile detection (planar arrangement) · PASSED (2026-10-13)
+
+Code: `poc/sketch-solver/src/profiles.rs` (`detect_profiles(&Sketch) -> ProfileSet`), tests `tests/profiles.rs` (18/18).
+Same crate as K-1 (pure Rust, `libm`, wasm32 build OK, clippy `-D warnings` clean). K-1 suites and the golden
+digest are unchanged.
+
+### Algorithm
+
+1. Non-construction curves → primitives (line, arc, circle). Zero-length lines and r ≤ tol are skipped with
+   `SKETCH.GEOMETRY.DEGENERATE`; exact duplicates are dropped with `SKETCH.GEOMETRY.DUPLICATE` (one per extra copy).
+2. Cut points per primitive: carrier intersections (line–line, line–arc, arc–arc, tangent within tol) filtered to both
+   primitives, plus endpoints that lie within tol of another curve (T junctions, overlaps, near misses).
+3. All cut points are clustered within `TOL_LIN` = 1e-5 mm into vertices (transitive; the first point in (x, y) order
+   represents the cluster). The sketch's own points are never changed (F76).
+4. Edges between consecutive cut points; identical sub-edges (overlapping curves) collapse.
+5. Half-edge faces. Edges with the same face on both sides (dangling arms, bridges between nested loops) are removed
+   until none is left; tangent curves at a vertex are ordered by curvature.
+6. Counter-clockwise cycles are profiles; each clockwise cycle (a component's outer boundary) becomes a hole of the
+   smallest profile of another component that contains it (winding number with exact circular-segment terms).
+7. Areas by Green's theorem relative to the loop's first vertex, so 1e6 mm offsets do not cancel.
+
+### Results
+
+| Case | Result |
+| --- | --- |
+| SK-01 rectangle 40×20 | 1 profile, 800 mm² |
+| SK-10 chain gap 1e-5 / 2e-5 (also 0, 5e-6, 1.1e-5 + …) | 1 / 0 profiles; 0 and 5e-6 close, 2e-5 and 1.6e-5 do not |
+| SK-11 side 2⁻¹⁰ and 1e6, offset 0 and 1e6 | area = stored side², rel 1e-12 |
+| SK-12 rect ⊃ circle ⊃ circle | 3 profiles, loops 2 / 2 / 1, areas exact (rel 1e-12) |
+| F74 overlapping circles | 3 regions: lens 122.84 + 2 crescents |
+| F74 tangent circles | external → 2; internal → 2 (disc + crescent) |
+| F74 bowtie | 2 triangles of 25 |
+| F74 rectangle crossed by unconnected line | 2 halves of 50 |
+| F74 overshooting tic-tac-toe | 1 inner square (16) |
+| F75 duplicate circle / rectangle | 1 profile each + `SKETCH.GEOMETRY.DUPLICATE` |
+| construction line across a rectangle; open chain | still 1 profile; 0 profiles |
+| arcs: half disc, ¾ disc (sweep > π), slot | exact areas |
+| bridge line between nested loops | 2 profiles, areas unchanged |
+| property: 12 random edge-to-edge chords in a rectangle, 8 random chords in a disc, 20 seeds each | regions tile the area to 1e-9 |
+| determinism / curve insertion order | identical result; same areas for reversed insertion |
+| performance, 1020 curves → 400 profiles (release) | 13.5 ms (target < 100 ms) |
+
+### Decisions to review
+
+1. New code **`SKETCH.GEOMETRY.DUPLICATE`** (Warning) proposed for H.5 as F.8 asks; degenerate input reuses
+   `SKETCH.GEOMETRY.DEGENERATE`.
+2. **Vertex clustering is transitive**: a chain of points each within 1e-5 of the next merges even if the ends are
+   further apart. Fine for sketches; it is a sharp edge when many points sit within the tolerance.
+3. **Hole ownership** is by the smallest containing profile of another component. A component that touches no other
+   (nested loops) is a hole; one connected through a bridge is not (the bridge is dropped), as the reference does.
+4. Closure test is `gap ≤ 1e-5·(1+1e-9)`. The reference boundary is between 1e-5 and 2e-5, so this is conservative.
+
+### Not covered / follow-ups
+
+- Ellipse, spline and conic curves (not in the K-1 model); a profile with one arc of sweep exactly 2π is treated as a
+  circle.
+- Output pieces name the source curve and endpoints but not a parameter range; when one curve is cut into several
+  pieces the K-2 labels need a `splitIndex` (H.3.9) — the pieces are in loop order, which is deterministic but not yet
+  a stable key across edits.
+- Near-parallel lines closer than 1e-5 are treated as coincident only at endpoints; a long sliver between two lines
+  0.9e-5 apart whose endpoints are far from each other is not collapsed.
+- Profile ↔ extrude hand-off (K-2 `ProfilePoint` list) is manual in the tests; a conversion `Profile → polygon with
+  curve ids` for line-only loops would be the first step of the integration.
