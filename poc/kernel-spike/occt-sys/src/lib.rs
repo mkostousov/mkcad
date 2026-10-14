@@ -67,6 +67,7 @@ pub mod ffi {
         fn shell_faces(a: &Shape, faces: &[u32], thickness: f64) -> Result<OpResult>;
 
         fn export_step(a: &Shape, path: &str) -> Result<()>;
+        fn export_step_schema(a: &Shape, path: &str, schema: &str) -> Result<()>;
         fn import_step(path: &str) -> Result<UniquePtr<Shape>>;
     }
 }

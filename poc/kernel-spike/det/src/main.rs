@@ -110,7 +110,21 @@ fn run_once() -> String {
         strict(&mut out, &format!("feature.{}.diag", r.id), r.diagnostics.join(","));
     }
     describe(&mut out, rb.body.as_ref().expect("final body"));
+    // STEP DATA section (the header carries a timestamp): must be byte-identical across rebuilds and OSes.
+    static SEQ: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let n = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let path = std::env::temp_dir().join(format!("mkcad_det_{}_{n}.step", std::process::id()));
+    rb.body.as_ref().unwrap().solid.export_step_schema(&path, "AP242DIS").expect("step export");
+    let text = std::fs::read_to_string(&path).unwrap();
+    let _ = std::fs::remove_file(&path);
+    let data = &text[text.find("DATA;").unwrap()..];
+    strict(&mut out, "step.data.bytes", data.len());
+    strict(&mut out, "step.data.fnv", format!("{:016x}", digest_bytes(data.as_bytes())));
     out
+}
+
+fn digest_bytes(b: &[u8]) -> u64 {
+    b.iter().fold(0xcbf29ce484222325u64, |h, &c| (h ^ c as u64).wrapping_mul(0x100000001b3))
 }
 
 fn digest(s: &str, only: char) -> u64 {

@@ -20,6 +20,10 @@
 #include <IFSelect_ReturnStatus.hxx>
 #include <STEPControl_Reader.hxx>
 #include <STEPControl_Writer.hxx>
+#include <Interface_Static.hxx>
+#include <fstream>
+#include <iterator>
+#include <regex>
 #include <Standard_Failure.hxx>
 #include <TopExp.hxx>
 #include <TopTools_IndexedMapOfShape.hxx>
@@ -269,6 +273,31 @@ void export_step(const Shape& a, rust::Str path) {
     if (w.Transfer(a.s, STEPControl_AsIs) != IFSelect_RetDone) throw std::runtime_error("STEP transfer failed");
     std::string p(path.data(), path.size());
     if (w.Write(p.c_str()) != IFSelect_RetDone) throw std::runtime_error("STEP write failed: " + p);
+    return 0;
+  });
+}
+
+void export_step_schema(const Shape& a, rust::Str path, rust::Str schema) {
+  guard([&] {
+    STEPControl_Writer w;  // registers the STEP parameters (Interface_Static) on construction
+    std::string s(schema.data(), schema.size());
+    if (!Interface_Static::SetCVal("write.step.schema", s.c_str())) throw std::runtime_error("unknown STEP schema: " + s);
+    Interface_Static::SetCVal("write.step.unit", "MM");
+    // Without this the product name carries a per-process export counter ("... 8.0 2", "... 8.0 6").
+    Interface_Static::SetCVal("write.step.product.name", "mkcad-part");
+    if (w.Transfer(a.s, STEPControl_AsIs) != IFSelect_RetDone) throw std::runtime_error("STEP transfer failed");
+    std::string p(path.data(), path.size());
+    if (w.Write(p.c_str()) != IFSelect_RetDone) throw std::runtime_error("STEP write failed: " + p);
+    // OCCT appends a per-process export counter to the product name ("mkcad-part 3"); strip it so that the
+    // DATA section depends on the shape only (K-4).
+    std::string text;
+    {
+      std::ifstream in(p, std::ios::binary);
+      text.assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+    }
+    text = std::regex_replace(text, std::regex("'mkcad-part [0-9]+'"), "'mkcad-part'");
+    std::ofstream out(p, std::ios::binary | std::ios::trunc);
+    out << text;
     return 0;
   });
 }

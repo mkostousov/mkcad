@@ -179,6 +179,12 @@ impl Solid {
         Ok(ffi::export_step(&self.0, p)?)
     }
 
+    /// Export with an explicit STEP schema: `"AP203"`, `"AP214IS"`, `"AP242DIS"` (OCCT `write.step.schema`).
+    pub fn export_step_schema(&self, path: &Path, schema: &str) -> Result<()> {
+        let p = path.to_str().ok_or_else(|| KernelError("non-UTF-8 path".into()))?;
+        Ok(ffi::export_step_schema(&self.0, p, schema)?)
+    }
+
     pub fn import_step(path: &Path) -> Result<Solid> {
         let p = path.to_str().ok_or_else(|| KernelError("non-UTF-8 path".into()))?;
         Ok(Solid(ffi::import_step(p)?))

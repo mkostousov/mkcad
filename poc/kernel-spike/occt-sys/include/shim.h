@@ -41,6 +41,7 @@ OpResult shell_faces(const Shape& a, rust::Slice<const uint32_t> faces, double t
 EdgeProps edge_props(const Shape& a, uint32_t index);
 
 void export_step(const Shape& a, rust::Str path);
+void export_step_schema(const Shape& a, rust::Str path, rust::Str schema);
 std::unique_ptr<Shape> import_step(rust::Str path);
 
 } // namespace mkcad
