@@ -5,6 +5,24 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Document-level settings (display units, etc.).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct DocumentSettings {
+    /// Display unit for length (mm, in, etc.).
+    pub length_unit: String,
+    /// Display unit for angle (deg, rad).
+    pub angle_unit: String,
+}
+
+impl Default for DocumentSettings {
+    fn default() -> Self {
+        DocumentSettings {
+            length_unit: "mm".to_string(),
+            angle_unit: "deg".to_string(),
+        }
+    }
+}
+
 /// Enumeration of supported commands (skeleton for M1).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Command {
@@ -20,6 +38,15 @@ pub enum Command {
     /// No-op command for testing the bus.
     #[serde(rename = "noop")]
     NoOp,
+
+    /// Set the document's display unit for lengths.
+    #[serde(rename = "set_display_unit")]
+    SetDisplayUnit {
+        /// New display unit (e.g., "mm", "in").
+        unit: String,
+        /// Unit type: "length" or "angle".
+        unit_type: String,
+    },
 }
 
 impl Command {
@@ -28,6 +55,7 @@ impl Command {
         match self {
             Command::EmitDiagnostic { .. } => "Emit Diagnostic",
             Command::NoOp => "No-op",
+            Command::SetDisplayUnit { .. } => "Set Display Unit",
         }
     }
 }
@@ -143,19 +171,27 @@ impl Default for TransactionStack {
 ///
 /// Executes commands, returns outcomes, and optionally records transactions for undo/redo.
 pub struct CommandBus {
+    /// Undo/redo transaction stack.
     tx_stack: TransactionStack,
+    /// Whether to record transactions.
     record_transactions: bool,
+    /// Document settings (display units, etc.).
+    pub settings: DocumentSettings,
 }
 
 impl CommandBus {
     /// Creates a new command bus.
     pub fn new() -> Self {
-        CommandBus { tx_stack: TransactionStack::new(), record_transactions: true }
+        CommandBus {
+            tx_stack: TransactionStack::new(),
+            record_transactions: true,
+            settings: DocumentSettings::default(),
+        }
     }
 
     /// Dispatches a command and returns the outcome.
     ///
-    /// For M1, this is a stub that handles test commands (EmitDiagnostic, NoOp).
+    /// For M1, this is a stub that handles test commands (EmitDiagnostic, NoOp, SetDisplayUnit).
     pub fn dispatch(&mut self, cmd: Command) -> CommandOutcome {
         let outcome = self.execute(&cmd);
 
@@ -171,7 +207,7 @@ impl CommandBus {
         outcome
     }
 
-    fn execute(&self, cmd: &Command) -> CommandOutcome {
+    fn execute(&mut self, cmd: &Command) -> CommandOutcome {
         match cmd {
             Command::EmitDiagnostic { code, severity } => {
                 CommandOutcome::Success {
@@ -180,6 +216,26 @@ impl CommandBus {
             }
             Command::NoOp => {
                 CommandOutcome::Success { message: "No-op completed".to_string() }
+            }
+            Command::SetDisplayUnit { unit, unit_type } => {
+                match unit_type.as_str() {
+                    "length" => {
+                        self.settings.length_unit = unit.clone();
+                        CommandOutcome::Success {
+                            message: format!("Set display unit to {}", unit),
+                        }
+                    }
+                    "angle" => {
+                        self.settings.angle_unit = unit.clone();
+                        CommandOutcome::Success {
+                            message: format!("Set angle unit to {}", unit),
+                        }
+                    }
+                    _ => CommandOutcome::Rejected {
+                        code: "INVALID_UNIT_TYPE".to_string(),
+                        reason: format!("Unknown unit type: {}", unit_type),
+                    },
+                }
             }
         }
     }
