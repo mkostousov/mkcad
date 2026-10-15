@@ -167,9 +167,9 @@ impl Default for TransactionStack {
     }
 }
 
-/// Command dispatch bus.
+/// Command dispatch bus with state management.
 ///
-/// Executes commands, returns outcomes, and optionally records transactions for undo/redo.
+/// Executes commands, returns outcomes, and records transactions for undo/redo with state restoration.
 pub struct CommandBus {
     /// Undo/redo transaction stack.
     tx_stack: TransactionStack,
@@ -191,15 +191,27 @@ impl CommandBus {
 
     /// Dispatches a command and returns the outcome.
     ///
-    /// For M1, this is a stub that handles test commands (EmitDiagnostic, NoOp, SetDisplayUnit).
+    /// For M1, handles EmitDiagnostic, NoOp, SetDisplayUnit with full undo/redo support.
     pub fn dispatch(&mut self, cmd: Command) -> CommandOutcome {
+        // Save previous state before execution (for undo)
+        let saved_settings = self.settings.clone();
+
         let outcome = self.execute(&cmd);
 
         if self.record_transactions && outcome.is_success() {
+            // Serialize previous state into transaction for undo
+            let prev_unit_type = if matches!(&cmd, Command::SetDisplayUnit { unit_type, .. } if unit_type == "length") {
+                saved_settings.length_unit.clone()
+            } else if matches!(&cmd, Command::SetDisplayUnit { unit_type, .. } if unit_type == "angle") {
+                saved_settings.angle_unit.clone()
+            } else {
+                String::new()
+            };
+
             let tx = Transaction {
                 label: cmd.label().to_string(),
-                command: cmd,
-                reverse_data: Vec::new(),
+                command: cmd.clone(),
+                reverse_data: prev_unit_type.into_bytes(),
             };
             self.tx_stack.push(tx);
         }
@@ -240,13 +252,33 @@ impl CommandBus {
         }
     }
 
-    /// Undoes the last transaction.
+    /// Undoes the last transaction, restoring previous state for SetDisplayUnit commands.
     pub fn undo(&mut self) -> Option<String> {
+        if let Some(tx) = self.tx_stack.undo_stack.last() {
+            if let Command::SetDisplayUnit { unit_type, .. } = &tx.command {
+                if let Ok(prev_unit) = String::from_utf8(tx.reverse_data.clone()) {
+                    match unit_type.as_str() {
+                        "length" => self.settings.length_unit = prev_unit,
+                        "angle" => self.settings.angle_unit = prev_unit,
+                        _ => {}
+                    }
+                }
+            }
+        }
         self.tx_stack.undo()
     }
 
-    /// Redoes the last undone transaction.
+    /// Redoes the last undone transaction, restoring the new state for SetDisplayUnit commands.
     pub fn redo(&mut self) -> Option<String> {
+        if let Some(tx) = self.tx_stack.redo_stack.last() {
+            if let Command::SetDisplayUnit { unit, unit_type } = &tx.command {
+                match unit_type.as_str() {
+                    "length" => self.settings.length_unit = unit.clone(),
+                    "angle" => self.settings.angle_unit = unit.clone(),
+                    _ => {}
+                }
+            }
+        }
         self.tx_stack.redo()
     }
 
