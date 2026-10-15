@@ -24,8 +24,8 @@ Status legend: DONE · NEXT · TODO
 | K-4 Determinism | K4-1 Document-level rebuild 100× Windows + Linux | bit-identical coords, volume rel 1e-12 (TX-DET) | DONE (poc/kernel-spike/det; re-verified 2026-10-14: Windows 100x run identical to golden, which matches Linux) |
 | M1 App shell + CI | Cargo workspace at repo root (solver, domain, kernel, app) | builds Win/Linux(/macOS) | DONE (crates/mkcad-{solver,kernel,domain,app}; 96 tests green on Windows; Linux/macOS via CI ticket; needs-user-review: edition downgraded 2024->2021, let chains rewritten) |
 | M1 App shell + CI | GitHub Actions matrix windows/ubuntu/macos, clippy, wasm32 check | CI green | BLOCKED: workflow committed on local branch `ci-workflow`, push rejected (OAuth token lacks `workflow` scope; run `gh auth refresh -s workflow` then push that branch) (.github/workflows/ci.yml; local clippy+wasm32 pass; Actions result pending; kernel job continue-on-error, no vcpkg cache; fmt check off) |
-| M1 App shell + CI | UI framework spike egui vs Slint vs Dioxus (web support is a criterion) | decision record; label needs-user-review | NEXT |
-| M1 App shell + CI | CommandBus skeleton + diagnostics sink (H.5 codes) | empty window, log viewer, cold start < 2 s | TODO |
+| M1 App shell + CI | UI framework spike egui vs Slint vs Dioxus (web support is a criterion) | decision record; label needs-user-review | DONE (docs/decisions/ui-framework.md: egui/eframe recommended; desk research only, claims such as Slint licensing unverified; 1-day spike checklist inside; needs-user-review) |
+| M1 App shell + CI | CommandBus skeleton + diagnostics sink (H.5 codes) | empty window, log viewer, cold start < 2 s | NEXT |
 | M2 Units + expressions + undo core | Quantity/units, expression evaluator ("," separator, N.2a-6), transactions | EX-01…EX-12, UN-01…UN-04 | TODO |
 | M3 Viewport (wgpu) | wgpu renderer: grid, orbit/pan/zoom, view cube, ID-buffer picking, MSAA, high-DPI | VW-01…VW-06, 60 fps @ 1M tris | TODO |
 | M4 Persistence | `.mkcad` package, autosave, recovery, migrations | PK-01…PK-08 | TODO |
