@@ -388,3 +388,90 @@ fn random_chords_tile_the_disc_exactly() {
         assert!(close(total, PI * r * r, 1e-9), "seed {seed}: total {total}");
     }
 }
+
+#[test]
+fn sk10_open_chain_with_tangent_endpoints_gives_zero_profiles() {
+    // Three lines forming a U-shape but not connected (endpoints just touching)
+    let mut b = B::default();
+    b.line((0.0, 0.0), (10.0, 0.0)); // horizontal base
+    b.line((10.0, 0.0), (10.0, 10.0)); // right vertical (connects at 10,0)
+    b.line((10.0, 10.0), (0.0, 10.0)); // top horizontal (connects at 10,10)
+    // Don't connect back to start - this is an open chain
+    let set = detect_profiles(&b.s);
+    assert!(set.profiles.is_empty(), "open chain should give 0 profiles");
+}
+
+#[test]
+fn sk10_closed_rectangle_alone_gives_one_profile() {
+    // Rectangle is closed; it should always give exactly 1 profile regardless of other curves
+    let mut b = B::default();
+    b.rect(0.0, 0.0, 20.0, 20.0);
+    let set = detect_profiles(&b.s);
+    assert_eq!(set.profiles.len(), 1, "closed rectangle should give 1 profile");
+    assert!(close(set.profiles[0].area, 400.0, 1e-12));
+}
+
+#[test]
+fn sk10_barely_closed_gap_at_tol_lin() {
+    // Test closure exactly at TOL_LIN boundary
+    let mut b = B::default();
+    let gap = 1e-5; // exactly TOL_LIN
+    b.line((0.0, 0.0), (10.0, 0.0));
+    b.line((10.0, 0.0), (10.0, 10.0));
+    b.line((10.0, 10.0), (0.0, 10.0));
+    b.line((0.0, 10.0), (0.0, gap));
+    let set = detect_profiles(&b.s);
+    assert_eq!(set.profiles.len(), 1, "gap at TOL_LIN should close");
+}
+
+#[test]
+fn sk10_barely_open_gap_above_tol_lin() {
+    // Test that gap just above TOL_LIN does not close
+    let mut b = B::default();
+    let gap = 1.0001e-5; // slightly above TOL_LIN
+    b.line((0.0, 0.0), (10.0, 0.0));
+    b.line((10.0, 0.0), (10.0, 10.0));
+    b.line((10.0, 10.0), (0.0, 10.0));
+    b.line((0.0, 10.0), (0.0, gap));
+    let set = detect_profiles(&b.s);
+    assert!(set.profiles.is_empty(), "gap above TOL_LIN should not close");
+}
+
+#[test]
+fn sk10_multiple_open_chains_give_zero_profiles() {
+    // Several open chains, none closed - should give 0 profiles
+    let mut b = B::default();
+    b.line((0.0, 0.0), (10.0, 10.0));
+    b.line((5.0, 5.0), (15.0, 15.0));
+    b.line((20.0, 0.0), (30.0, 10.0));
+    let set = detect_profiles(&b.s);
+    assert!(set.profiles.is_empty(), "multiple open chains should give 0 profiles");
+}
+
+#[test]
+fn sk10_mixed_open_and_closed_chains() {
+    // One closed chain (a triangle) and one open chain
+    let mut b = B::default();
+    // Closed triangle
+    b.line((0.0, 0.0), (10.0, 0.0));
+    b.line((10.0, 0.0), (5.0, 10.0));
+    b.line((5.0, 10.0), (0.0, 0.0));
+    // Open chain (line)
+    b.line((20.0, 0.0), (30.0, 10.0));
+    let set = detect_profiles(&b.s);
+    assert_eq!(set.profiles.len(), 1, "closed + open should give 1 profile");
+}
+
+#[test]
+fn sk10_arc_closes_chain_within_tolerance() {
+    // Open chain of lines closed by an arc within tolerance
+    let mut b = B::default();
+    b.line((0.0, 0.0), (10.0, 0.0));
+    b.line((10.0, 0.0), (10.0, 10.0));
+    b.line((10.0, 10.0), (0.0, 10.0));
+    // Arc from (0,10) back to (0,0) with a gap at the start point
+    // Arc with radius 5, centered at (0, 5)
+    b.arc((0.0, 5.0), 5.0, PI / 2.0, 1.5 * PI); // arc from (0,10) to (0,0)
+    let set = detect_profiles(&b.s);
+    assert_eq!(set.profiles.len(), 1, "chain closed by arc should give 1 profile");
+}

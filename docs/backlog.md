@@ -19,7 +19,7 @@ Status legend: DONE · NEXT · TODO
 | K-2 OCCT kernel + topological naming | K2-3 Naming model per G.4: labels from sketch IDs + history, resolution exact/expanded/lost | unit tests per G.4 step | DONE (poc/occt-kernel/src/naming.rs, 12 tests; label model is pure logic, not yet wired to kernel history - wiring in K2-4; needs-user-review: string labels, fixed 1e-6 signature tol, edge label = first face label) |
 | K-2 OCCT kernel + topological naming | K2-4 Replay REF-01…REF-08 | all REF rows resolve per G.4 | DONE (tests/naming.rs, 10 tests; caveat: labels seeded by hand on a box, not from a sketch-driven extrude; review in M11/M13) |
 | K-2 OCCT kernel + topological naming | K2-5 STEP AP242 round-trip + fillet robustness smoke | IO-01 subset | DONE (tests/step.rs 3, tests/fillet.rs 5; ported from kernel-spike) |
-| K-3 Profile detection | K3-1 Planar arrangement over sketch curves (lines/arcs/circles), tol_lin 1e-5 mm | SK-10 1/0 profiles | NEXT |
+| K-3 Profile detection | K3-1 Planar arrangement over sketch curves (lines/arcs/circles), tol_lin 1e-5 mm | SK-10 1/0 profiles | DONE (poc/sketch-solver profiles.rs; 7 boundary tests added, 25 profile tests) |
 | K-3 Profile detection | K3-2 Region/loop extraction with holes, duplicate curves warning | SK-11 exact areas, SK-12 3 profiles | TODO |
 | K-4 Determinism | K4-1 Document-level rebuild 100× Windows + Linux | bit-identical coords, volume rel 1e-12 (TX-DET) | TODO |
 | M1 App shell + CI | Cargo workspace at repo root (solver, domain, kernel, app) | builds Win/Linux(/macOS) | TODO |
