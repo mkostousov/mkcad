@@ -28,18 +28,17 @@ fn ref_01_unrelated_upstream_insert_is_exact() {
 
     // Get info for the top face (index 5 in a standard box is +Z)
     let top_face_info = box_shape.face_info(5).expect("face info");
-    assert!((top_face_info.centroid[2] - 20.0).abs() < 1e-9, "top face should be at z=20");
+    assert!(
+        (top_face_info.centroid[2] - 20.0).abs() < 1e-9,
+        "top face should be at z=20"
+    );
 
     // Top edge is at index 8 or 9 in a box (the edge with y=0, z=20)
     // For simplicity, let's just check resolution works
     let top_edge_label = Label::side(10); // First side face label
     let top_edge_ref = ReferenceDescriptor::new(
         top_edge_label.clone(),
-        GeometricSignature::face(
-            [10.0, 0.0, 20.0],
-            [0.0, -1.0, 0.0],
-            400.0,
-        ),
+        GeometricSignature::face([10.0, 0.0, 20.0], [0.0, -1.0, 0.0], 400.0),
     );
 
     // Resolution before any operation should be Exact
@@ -57,14 +56,15 @@ fn ref_01_unrelated_upstream_insert_is_exact() {
     let box_with_hole = op.shape().expect("failed to get result");
 
     // Propagate labels through the cut operation
-    let new_labels = propagate_op_history(&op, &timeline.face_labels)
-        .expect("failed to propagate history");
+    let new_labels =
+        propagate_op_history(&op, &timeline.face_labels).expect("failed to propagate history");
     timeline.face_labels = new_labels;
 
     // Check that the side face label still resolves exactly
     let (result2, indices2) = timeline.resolve(&top_edge_ref, &box_with_hole, 1e-6);
     assert_eq!(
-        result2, ResolutionResult::Exact,
+        result2,
+        ResolutionResult::Exact,
         "side face label should still resolve exactly after unrelated cut"
     );
     assert!(!indices2.is_empty(), "should still find matching face");
@@ -94,11 +94,7 @@ fn ref_02_edge_split_expanded_to_both_pieces() {
     let side_face_label = Label::side(10);
     let side_face_ref = ReferenceDescriptor::new(
         side_face_label.clone(),
-        GeometricSignature::face(
-            [10.0, -1.0, 10.0],
-            [0.0, -1.0, 0.0],
-            400.0,
-        ),
+        GeometricSignature::face([10.0, -1.0, 10.0], [0.0, -1.0, 0.0], 400.0),
     );
 
     // Verify initial resolution
@@ -107,13 +103,15 @@ fn ref_02_edge_split_expanded_to_both_pieces() {
 
     // Apply a groove (cut box) across the middle: x 8..12, z 15..25
     let groove = Shape::make_box(4.0, 22.0, 10.0).expect("failed to create groove");
-    let groove_positioned = groove.translate(8.0, -1.0, 15.0).expect("failed to translate groove");
+    let groove_positioned = groove
+        .translate(8.0, -1.0, 15.0)
+        .expect("failed to translate groove");
     let op = Op::cut(&box_shape, &groove_positioned).expect("failed to cut groove");
     let result_with_groove = op.shape().expect("failed to get result");
 
     // Propagate labels
-    let new_labels = propagate_op_history(&op, &timeline.face_labels)
-        .expect("failed to propagate history");
+    let new_labels =
+        propagate_op_history(&op, &timeline.face_labels).expect("failed to propagate history");
     timeline.face_labels = new_labels;
 
     // Check that the side face label now resolves to Expanded(2)
@@ -166,7 +164,8 @@ fn ref_03_edge_removed_is_lost_then_recovers() {
 
     // Cut away the corner (20×20×20 at corner)
     let corner_cut = Shape::make_box(10.0, 10.0, 22.0).expect("failed to create corner cut");
-    let corner_cut_positioned = corner_cut.translate(15.0, 15.0, -1.0)
+    let corner_cut_positioned = corner_cut
+        .translate(15.0, 15.0, -1.0)
         .expect("failed to translate corner cut");
     let op_corner = Op::cut(&box_shape, &corner_cut_positioned).expect("failed to cut corner");
     let box_without_corner = op_corner.shape().expect("failed to get result");
@@ -179,7 +178,8 @@ fn ref_03_edge_removed_is_lost_then_recovers() {
     timeline_after_cut.face_labels = new_labels_after_cut;
 
     // Check that the edge reference is now lost (the edge was removed)
-    let (result_lost, _) = timeline_after_cut.resolve(&vertical_edge_ref, &box_without_corner, 1e-6);
+    let (result_lost, _) =
+        timeline_after_cut.resolve(&vertical_edge_ref, &box_without_corner, 1e-6);
 
     // The reference may be lost or signature-matched depending on geometry.
     // The important point is that if the face containing the edge was removed,
@@ -192,7 +192,11 @@ fn ref_03_edge_removed_is_lost_then_recovers() {
 
     // Simulate recovery: use the original box shape again (as if the cut was suppressed)
     let (result_recovered, _) = timeline.resolve(&vertical_edge_ref, &box_shape, 1e-6);
-    assert_eq!(result_recovered, ResolutionResult::Exact, "should recover by reverting to original shape");
+    assert_eq!(
+        result_recovered,
+        ResolutionResult::Exact,
+        "should recover by reverting to original shape"
+    );
 }
 
 /// REF-04: Sketch on face follows resize.
@@ -217,11 +221,7 @@ fn ref_04_sketch_on_face_follows_resize() {
     // Reference the top face (cap:end)
     let top_face_ref = ReferenceDescriptor::new(
         Label::cap(false),
-        GeometricSignature::face(
-            [10.0, 10.0, 20.0],
-            [0.0, 0.0, 1.0],
-            400.0,
-        ),
+        GeometricSignature::face([10.0, 10.0, 20.0], [0.0, 0.0, 1.0], 400.0),
     );
 
     // Verify initial resolution at z=20
@@ -239,11 +239,17 @@ fn ref_04_sketch_on_face_follows_resize() {
     match result_30 {
         ResolutionResult::Exact | ResolutionResult::Signature => {
             // Expected: we found a face with the cap:end label
-            assert!(!indices_30.is_empty(), "should find top face in resized extrusion");
+            assert!(
+                !indices_30.is_empty(),
+                "should find top face in resized extrusion"
+            );
 
             // Verify the centroid of the found face is at z=30
             let found_face_info = box_30.face_info(indices_30[0]).expect("face info");
-            assert!((found_face_info.centroid[2] - 30.0).abs() < 1e-9, "found face should be at z=30");
+            assert!(
+                (found_face_info.centroid[2] - 30.0).abs() < 1e-9,
+                "found face should be at z=30"
+            );
         }
         _ => {
             panic!("expected Exact or Signature, got {:?}", result_30);
@@ -274,18 +280,11 @@ fn ref_05_face_deleted_keeps_cached_frame() {
     // Reference the top face
     let top_face_ref = ReferenceDescriptor::new(
         Label::cap(false),
-        GeometricSignature::face(
-            [10.0, 10.0, 20.0],
-            [0.0, 0.0, 1.0],
-            400.0,
-        ),
+        GeometricSignature::face([10.0, 10.0, 20.0], [0.0, 0.0, 1.0], 400.0),
     );
 
     // Cache the plane: z=20, normal [0, 0, 1]
-    let cached_plane = (
-        [10.0, 10.0, 20.0],
-        [0.0, 0.0, 1.0],
-    );
+    let cached_plane = ([10.0, 10.0, 20.0], [0.0, 0.0, 1.0]);
 
     // Verify initial resolution
     let (result_before, _) = timeline.resolve(&top_face_ref, &box_shape, 1e-6);
@@ -293,19 +292,22 @@ fn ref_05_face_deleted_keeps_cached_frame() {
 
     // Cut away the top (slab cut at z=15, removing everything above)
     let slab = Shape::make_box(22.0, 22.0, 10.0).expect("failed to create slab");
-    let slab_positioned = slab.translate(-1.0, -1.0, 15.0).expect("failed to translate slab");
+    let slab_positioned = slab
+        .translate(-1.0, -1.0, 15.0)
+        .expect("failed to translate slab");
     let op = Op::cut(&box_shape, &slab_positioned).expect("failed to cut slab");
     let box_without_top = op.shape().expect("failed to get result");
 
     // Propagate labels (the top face is now gone)
-    let new_labels = propagate_op_history(&op, &timeline.face_labels)
-        .expect("failed to propagate history");
+    let new_labels =
+        propagate_op_history(&op, &timeline.face_labels).expect("failed to propagate history");
     let mut timeline_after_cut = Timeline::new();
     timeline_after_cut.init_shape(&box_shape, vec![]);
     timeline_after_cut.face_labels = new_labels;
 
     // Check that the top face reference may be lost or have fewer matches
-    let (result_lost, indices_lost) = timeline_after_cut.resolve(&top_face_ref, &box_without_top, 1e-6);
+    let (result_lost, indices_lost) =
+        timeline_after_cut.resolve(&top_face_ref, &box_without_top, 1e-6);
 
     // The test geometry may not completely remove the top face, so we accept either Lost or Exact
     // The important point is that we're testing the caching and lost-face recovery mechanism
@@ -319,8 +321,16 @@ fn ref_05_face_deleted_keeps_cached_frame() {
 
     // Cached plane should still be preserved in the timeline structure
     // (in a real implementation, this would be stored separately)
-    assert_eq!(cached_plane.0, [10.0, 10.0, 20.0], "cached origin should be preserved");
-    assert_eq!(cached_plane.1, [0.0, 0.0, 1.0], "cached normal should be preserved");
+    assert_eq!(
+        cached_plane.0,
+        [10.0, 10.0, 20.0],
+        "cached origin should be preserved"
+    );
+    assert_eq!(
+        cached_plane.1,
+        [0.0, 0.0, 1.0],
+        "cached normal should be preserved"
+    );
 }
 
 /// REF-06: Split region (ambiguous or expanded, never silent).
@@ -345,11 +355,7 @@ fn ref_06_split_region_expanded_never_silent() {
     // Reference the top face (cap:end)
     let top_face_ref = ReferenceDescriptor::new(
         Label::cap(false),
-        GeometricSignature::face(
-            [10.0, 10.0, 20.0],
-            [0.0, 0.0, 1.0],
-            400.0,
-        ),
+        GeometricSignature::face([10.0, 10.0, 20.0], [0.0, 0.0, 1.0], 400.0),
     );
 
     // Verify initial resolution
@@ -358,13 +364,15 @@ fn ref_06_split_region_expanded_never_silent() {
 
     // Apply a groove (cut box): x 8..12, z 15..25 (goes through the top face)
     let groove = Shape::make_box(4.0, 22.0, 10.0).expect("failed to create groove");
-    let groove_positioned = groove.translate(8.0, -1.0, 15.0).expect("failed to translate groove");
+    let groove_positioned = groove
+        .translate(8.0, -1.0, 15.0)
+        .expect("failed to translate groove");
     let op = Op::cut(&box_shape, &groove_positioned).expect("failed to cut groove");
     let result_with_groove = op.shape().expect("failed to get result");
 
     // Propagate labels
-    let new_labels = propagate_op_history(&op, &timeline.face_labels)
-        .expect("failed to propagate history");
+    let new_labels =
+        propagate_op_history(&op, &timeline.face_labels).expect("failed to propagate history");
     timeline.face_labels = new_labels;
 
     // Check resolution: should be Expanded or still Exact depending on exact geometry
@@ -374,7 +382,11 @@ fn ref_06_split_region_expanded_never_silent() {
         ResolutionResult::Expanded(n) => {
             // Expected: top face split into pieces
             assert!(n > 1, "expanded should have multiple pieces");
-            assert_eq!(indices_after.len(), n, "indices should match expanded count");
+            assert_eq!(
+                indices_after.len(),
+                n,
+                "indices should match expanded count"
+            );
         }
         ResolutionResult::Exact => {
             // The groove may not have split the top face (depends on geometry)
@@ -408,11 +420,7 @@ fn ref_07_shell_face_split_upstream_uses_both_pieces() {
     // Reference the top face
     let top_face_ref = ReferenceDescriptor::new(
         Label::cap(false),
-        GeometricSignature::face(
-            [10.0, 10.0, 20.0],
-            [0.0, 0.0, 1.0],
-            400.0,
-        ),
+        GeometricSignature::face([10.0, 10.0, 20.0], [0.0, 0.0, 1.0], 400.0),
     );
 
     // Verify initial resolution
@@ -421,18 +429,24 @@ fn ref_07_shell_face_split_upstream_uses_both_pieces() {
 
     // Apply a groove (cut across the middle)
     let groove = Shape::make_box(4.0, 22.0, 10.0).expect("failed to create groove");
-    let groove_positioned = groove.translate(8.0, -1.0, 15.0).expect("failed to translate groove");
+    let groove_positioned = groove
+        .translate(8.0, -1.0, 15.0)
+        .expect("failed to translate groove");
     let op = Op::cut(&box_shape, &groove_positioned).expect("failed to cut groove");
     let result_with_groove = op.shape().expect("failed to get result");
 
     // Propagate labels
-    let new_labels = propagate_op_history(&op, &timeline.face_labels)
-        .expect("failed to propagate history");
+    let new_labels =
+        propagate_op_history(&op, &timeline.face_labels).expect("failed to propagate history");
     timeline.face_labels = new_labels;
 
     // Verify the top face reference now resolves (either Exact or Expanded)
     let (result_after_groove, _) = timeline.resolve(&top_face_ref, &result_with_groove, 1e-6);
-    assert_ne!(result_after_groove, ResolutionResult::Lost, "should still find top face(s) after groove");
+    assert_ne!(
+        result_after_groove,
+        ResolutionResult::Lost,
+        "should still find top face(s) after groove"
+    );
 }
 
 /// REF-08: Split edge re-merged (set shrinks back).
@@ -459,11 +473,7 @@ fn ref_08_split_edge_remerged_set_shrinks_back() {
     // Reference the first side face
     let side_face_ref = ReferenceDescriptor::new(
         Label::side(10),
-        GeometricSignature::face(
-            [10.0, -1.0, 10.0],
-            [0.0, -1.0, 0.0],
-            400.0,
-        ),
+        GeometricSignature::face([10.0, -1.0, 10.0], [0.0, -1.0, 0.0], 400.0),
     );
 
     // Verify initial resolution
@@ -472,23 +482,30 @@ fn ref_08_split_edge_remerged_set_shrinks_back() {
 
     // Apply a groove (splits the face)
     let groove = Shape::make_box(4.0, 22.0, 10.0).expect("failed to create groove");
-    let groove_positioned = groove.translate(8.0, -1.0, 15.0).expect("failed to translate groove");
+    let groove_positioned = groove
+        .translate(8.0, -1.0, 15.0)
+        .expect("failed to translate groove");
     let op = Op::cut(&box_shape, &groove_positioned).expect("failed to cut groove");
     let result_with_groove = op.shape().expect("failed to get result");
 
     // Propagate labels
-    let new_labels = propagate_op_history(&op, &timeline.face_labels)
-        .expect("failed to propagate history");
+    let new_labels =
+        propagate_op_history(&op, &timeline.face_labels).expect("failed to propagate history");
     let mut timeline_after_groove = Timeline::new();
     timeline_after_groove.init_shape(&box_shape, vec![]);
     timeline_after_groove.face_labels = new_labels;
 
     // Check resolution after groove
-    let (result_split, indices_split) = timeline_after_groove.resolve(&side_face_ref, &result_with_groove, 1e-6);
+    let (result_split, indices_split) =
+        timeline_after_groove.resolve(&side_face_ref, &result_with_groove, 1e-6);
 
     // Suppress the groove (revert to original shape)
     let (result_merged, indices_merged) = timeline.resolve(&side_face_ref, &box_shape, 1e-6);
-    assert_eq!(result_merged, ResolutionResult::Exact, "after suppressing groove, should be Exact again");
+    assert_eq!(
+        result_merged,
+        ResolutionResult::Exact,
+        "after suppressing groove, should be Exact again"
+    );
 
     // If the split resolution was Expanded, the merged should have fewer indices
     if let ResolutionResult::Expanded(_n) = result_split {
@@ -518,7 +535,10 @@ fn label_propagation_through_cut() {
     assert!(result.is_ok(), "propagation should succeed");
 
     let new_labels = result.unwrap();
-    assert!(!new_labels.is_empty(), "should have labels after propagation");
+    assert!(
+        !new_labels.is_empty(),
+        "should have labels after propagation"
+    );
 }
 
 /// Baseline test: extrusion labels initialize correctly.
@@ -542,11 +562,20 @@ fn extrude_labels_init() {
 
     // Verify labels
     let side_0_labels = &labels[&0];
-    assert!(side_0_labels.contains(&Label::side(1)), "side face 0 should have label f:side:1");
+    assert!(
+        side_0_labels.contains(&Label::side(1)),
+        "side face 0 should have label f:side:1"
+    );
 
     let cap_start = &labels[&4];
-    assert!(cap_start.contains(&Label::cap(true)), "start cap should have label f:cap:start");
+    assert!(
+        cap_start.contains(&Label::cap(true)),
+        "start cap should have label f:cap:start"
+    );
 
     let cap_end = &labels[&5];
-    assert!(cap_end.contains(&Label::cap(false)), "end cap should have label f:cap:end");
+    assert!(
+        cap_end.contains(&Label::cap(false)),
+        "end cap should have label f:cap:end"
+    );
 }

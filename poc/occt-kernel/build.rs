@@ -31,6 +31,8 @@ fn main() {
         "TKShHealing",
         "TKMesh",
         "TKXSBase",
+        "TKDESTEP",
+        "TKExpress",
     ];
 
     for lib in &tk_libs {

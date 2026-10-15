@@ -6,6 +6,7 @@
 //! Faces, edges, and vertices are indexed 0..n-1 in the order of `TopExp::MapShapes`.
 //! This corresponds to OCCT's 1-based indexing minus 1.
 
+use std::ffi::CString;
 use std::ptr::NonNull;
 
 pub mod naming;
@@ -67,6 +68,12 @@ mod ffi {
 
         // Face info function
         pub fn mk_face_info(s: *const mk_shape, index: i32, out7: *mut f64) -> i32;
+
+        // STEP import/export functions
+        pub fn mk_export_step(s: *const mk_shape, path: *const u8) -> i32;
+        pub fn mk_export_step_schema(s: *const mk_shape, path: *const u8, schema: *const u8)
+        -> i32;
+        pub fn mk_import_step(path: *const u8) -> *mut mk_shape;
     }
 }
 
@@ -297,6 +304,53 @@ impl Shape {
             } else {
                 Err(KernelError::OpFailed("mk_face_info"))
             }
+        }
+    }
+
+    /// Export shape to STEP file.
+    pub fn export_step(&self, path: &str) -> Result<(), KernelError> {
+        let path_cstr = CString::new(path)
+            .map_err(|_| KernelError::OpFailed("invalid path: contains null byte"))?;
+        unsafe {
+            let result = ffi::mk_export_step(self.0.as_ptr(), path_cstr.as_ptr() as *const u8);
+            if result == 0 {
+                Ok(())
+            } else {
+                Err(KernelError::OpFailed("mk_export_step"))
+            }
+        }
+    }
+
+    /// Export shape to STEP file with explicit schema.
+    /// Schema can be "AP203", "AP214IS", "AP242DIS", etc.
+    pub fn export_step_schema(&self, path: &str, schema: &str) -> Result<(), KernelError> {
+        let path_cstr = CString::new(path)
+            .map_err(|_| KernelError::OpFailed("invalid path: contains null byte"))?;
+        let schema_cstr = CString::new(schema)
+            .map_err(|_| KernelError::OpFailed("invalid schema: contains null byte"))?;
+        unsafe {
+            let result = ffi::mk_export_step_schema(
+                self.0.as_ptr(),
+                path_cstr.as_ptr() as *const u8,
+                schema_cstr.as_ptr() as *const u8,
+            );
+            if result == 0 {
+                Ok(())
+            } else {
+                Err(KernelError::OpFailed("mk_export_step_schema"))
+            }
+        }
+    }
+
+    /// Import shape from STEP file.
+    pub fn import_step(path: &str) -> Result<Shape, KernelError> {
+        let path_cstr = CString::new(path)
+            .map_err(|_| KernelError::OpFailed("invalid path: contains null byte"))?;
+        unsafe {
+            let ptr = ffi::mk_import_step(path_cstr.as_ptr() as *const u8);
+            NonNull::new(ptr)
+                .map(Shape)
+                .ok_or(KernelError::OpFailed("mk_import_step"))
         }
     }
 }

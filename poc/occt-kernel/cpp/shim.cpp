@@ -30,6 +30,12 @@
 #include <gp_Vec.hxx>
 #include <gp_Ax2.hxx>
 #include <gp_Trsf.hxx>
+#include <STEPControl_Reader.hxx>
+#include <STEPControl_Writer.hxx>
+#include <Interface_Static.hxx>
+#include <IFSelect_ReturnStatus.hxx>
+#include <fstream>
+#include <regex>
 #include <limits>
 #include <cmath>
 #include <vector>
@@ -578,6 +584,61 @@ int mk_face_info(const mk_shape* s, int index, double* out7) {
         return 0;
     } catch (...) {
         return -1;
+    }
+}
+
+// STEP export/import functions
+int mk_export_step(const mk_shape* s, const char* path) {
+    try {
+        if (!s || !s->shape || !path) return -1;
+        STEPControl_Writer w;
+        if (w.Transfer(*s->shape, STEPControl_AsIs) != IFSelect_RetDone) return -1;
+        if (w.Write(path) != IFSelect_RetDone) return -1;
+        return 0;
+    } catch (...) {
+        return -1;
+    }
+}
+
+int mk_export_step_schema(const mk_shape* s, const char* path, const char* schema) {
+    try {
+        if (!s || !s->shape || !path || !schema) return -1;
+        STEPControl_Writer w;  // registers the STEP parameters (Interface_Static) on construction
+        if (!Interface_Static::SetCVal("write.step.schema", schema)) return -1;
+        Interface_Static::SetCVal("write.step.unit", "MM");
+        // Without this the product name carries a per-process export counter ("... 8.0 2", "... 8.0 6").
+        Interface_Static::SetCVal("write.step.product.name", "mkcad-part");
+        if (w.Transfer(*s->shape, STEPControl_AsIs) != IFSelect_RetDone) return -1;
+        if (w.Write(path) != IFSelect_RetDone) return -1;
+        // OCCT appends a per-process export counter to the product name ("mkcad-part 3"); strip it so that the
+        // DATA section depends on the shape only (K-4).
+        std::string text;
+        {
+            std::ifstream in(path, std::ios::binary);
+            if (!in) return -1;
+            text.assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+        }
+        text = std::regex_replace(text, std::regex("'mkcad-part [0-9]+'"), "'mkcad-part'");
+        std::ofstream out(path, std::ios::binary | std::ios::trunc);
+        if (!out) return -1;
+        out << text;
+        return 0;
+    } catch (...) {
+        return -1;
+    }
+}
+
+mk_shape* mk_import_step(const char* path) {
+    try {
+        if (!path) return nullptr;
+        STEPControl_Reader rd;
+        if (rd.ReadFile(path) != IFSelect_RetDone) return nullptr;
+        if (rd.TransferRoots() <= 0) return nullptr;
+        mk_shape* result = new mk_shape;
+        result->shape = new TopoDS_Shape(rd.OneShape());
+        return result;
+    } catch (...) {
+        return nullptr;
     }
 }
 

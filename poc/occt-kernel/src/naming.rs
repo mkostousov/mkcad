@@ -24,8 +24,8 @@
 //! 5. **Recompute**: A feature with lost/ambiguous reference reports `REF.LOST` /
 //!    `REF.AMBIGUOUS` and the previous body continues (cached geometry).
 
-use std::collections::{HashMap, HashSet};
 use crate::{Kind, Op, Shape};
+use std::collections::{HashMap, HashSet};
 
 /// A topological label identifying a face or edge in the result of an operation.
 ///
@@ -284,8 +284,16 @@ impl Timeline {
             // Also check signature for fallback
             if let Ok(face_info) = shape.face_info(face_idx) {
                 let sig = GeometricSignature::face(
-                    [face_info.centroid[0], face_info.centroid[1], face_info.centroid[2]],
-                    [face_info.normal[0], face_info.normal[1], face_info.normal[2]],
+                    [
+                        face_info.centroid[0],
+                        face_info.centroid[1],
+                        face_info.centroid[2],
+                    ],
+                    [
+                        face_info.normal[0],
+                        face_info.normal[1],
+                        face_info.normal[2],
+                    ],
                     face_info.area,
                 );
                 if sig.matches(&descriptor.signature, tolerance) {
@@ -332,7 +340,9 @@ pub fn propagate_op_history(
     prev_labels: &HashMap<usize, HashSet<Label>>,
 ) -> Result<HashMap<usize, HashSet<Label>>, String> {
     let result_shape = op.shape().map_err(|e| format!("{:?}", e))?;
-    let face_count = result_shape.count(Kind::Face).map_err(|e| format!("{:?}", e))?;
+    let face_count = result_shape
+        .count(Kind::Face)
+        .map_err(|e| format!("{:?}", e))?;
 
     let mut new_labels: HashMap<usize, HashSet<Label>> = HashMap::new();
 
@@ -506,10 +516,10 @@ mod tests {
 
         // Initialize with labels for initial shape
         let labels = vec![
-            (0, Label::cap(true)),   // Face 0: start cap
-            (1, Label::side(10)),    // Face 1: side from curve 10
-            (2, Label::side(20)),    // Face 2: side from curve 20
-            (3, Label::cap(false)),  // Face 3: end cap
+            (0, Label::cap(true)),  // Face 0: start cap
+            (1, Label::side(10)),   // Face 1: side from curve 10
+            (2, Label::side(20)),   // Face 2: side from curve 20
+            (3, Label::cap(false)), // Face 3: end cap
         ];
 
         timeline.init_shape(&Shape::make_box(10.0, 10.0, 10.0).unwrap(), labels);
@@ -517,8 +527,18 @@ mod tests {
         // Check labels are stored
         assert!(timeline.labels_for_face(0).is_some());
         assert!(timeline.labels_for_face(1).is_some());
-        assert!(timeline.labels_for_face(0).unwrap().contains(&Label::cap(true)));
-        assert!(timeline.labels_for_face(1).unwrap().contains(&Label::side(10)));
+        assert!(
+            timeline
+                .labels_for_face(0)
+                .unwrap()
+                .contains(&Label::cap(true))
+        );
+        assert!(
+            timeline
+                .labels_for_face(1)
+                .unwrap()
+                .contains(&Label::side(10))
+        );
     }
 
     /// Step 5 (G.4): Test resolution - exact match
@@ -649,20 +669,26 @@ mod tests {
         timeline.propagate(&result_faces, &label_map, &modified_map);
 
         // Check that split faces kept the original labels
-        assert!(timeline
-            .labels_for_face(1)
-            .unwrap()
-            .contains(&Label::side(10)));
-        assert!(timeline
-            .labels_for_face(2)
-            .unwrap()
-            .contains(&Label::side(10)));
+        assert!(
+            timeline
+                .labels_for_face(1)
+                .unwrap()
+                .contains(&Label::side(10))
+        );
+        assert!(
+            timeline
+                .labels_for_face(2)
+                .unwrap()
+                .contains(&Label::side(10))
+        );
 
         // Check that face 3, 4, 5 from input face 2 got the right labels
-        assert!(timeline
-            .labels_for_face(3)
-            .unwrap()
-            .contains(&Label::side(20)));
+        assert!(
+            timeline
+                .labels_for_face(3)
+                .unwrap()
+                .contains(&Label::side(20))
+        );
     }
 
     /// Integration test: extrude with side faces and caps
@@ -678,8 +704,8 @@ mod tests {
             (1, Label::side(2)),
             (2, Label::side(3)),
             (3, Label::side(4)),
-            (4, Label::cap(true)),   // start cap
-            (5, Label::cap(false)),  // end cap
+            (4, Label::cap(true)),  // start cap
+            (5, Label::cap(false)), // end cap
         ];
         timeline.init_shape(&shape, labels);
 
@@ -705,7 +731,12 @@ mod tests {
             );
             let (result, indices) = timeline.resolve(&desc, &shape, 1e-6);
             if expect_found {
-                assert_ne!(result, ResolutionResult::Lost, "Label {} should be found", label);
+                assert_ne!(
+                    result,
+                    ResolutionResult::Lost,
+                    "Label {} should be found",
+                    label
+                );
                 assert!(!indices.is_empty());
             }
         }
@@ -719,12 +750,12 @@ mod tests {
         let shape = Shape::make_box(20.0, 20.0, 20.0).expect("failed to create box");
 
         let initial_labels = vec![
-            (0, Label::side(100)),    // side from profile curve 100
-            (1, Label::side(101)),    // side from profile curve 101
-            (2, Label::side(102)),    // side from profile curve 102
-            (3, Label::side(103)),    // side from profile curve 103
-            (4, Label::cap(true)),    // bottom cap
-            (5, Label::cap(false)),   // top cap
+            (0, Label::side(100)),  // side from profile curve 100
+            (1, Label::side(101)),  // side from profile curve 101
+            (2, Label::side(102)),  // side from profile curve 102
+            (3, Label::side(103)),  // side from profile curve 103
+            (4, Label::cap(true)),  // bottom cap
+            (5, Label::cap(false)), // top cap
         ];
         timeline.init_shape(&shape, initial_labels.clone());
 
@@ -783,7 +814,10 @@ mod tests {
         let (result_expanded, indices_expanded) = timeline.resolve(&ref_cap_start, &shape, 1e-6);
         // Since both faces 5 and 6 have the label, we expect Expanded(2)
         if indices_expanded.len() > 1 {
-            assert_eq!(result_expanded, ResolutionResult::Expanded(indices_expanded.len()));
+            assert_eq!(
+                result_expanded,
+                ResolutionResult::Expanded(indices_expanded.len())
+            );
         }
     }
 }
