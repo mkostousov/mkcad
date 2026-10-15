@@ -20,9 +20,9 @@ Status legend: DONE · NEXT · TODO
 | K-2 OCCT kernel + topological naming | K2-4 Replay REF-01…REF-08 | all REF rows resolve per G.4 | DONE (tests/naming.rs, 10 tests; caveat: labels seeded by hand on a box, not from a sketch-driven extrude; review in M11/M13) |
 | K-2 OCCT kernel + topological naming | K2-5 STEP AP242 round-trip + fillet robustness smoke | IO-01 subset | DONE (tests/step.rs 3, tests/fillet.rs 5; ported from kernel-spike) |
 | K-3 Profile detection | K3-1 Planar arrangement over sketch curves (lines/arcs/circles), tol_lin 1e-5 mm | SK-10 1/0 profiles | DONE (poc/sketch-solver profiles.rs; 7 boundary tests added, 25 profile tests) |
-| K-3 Profile detection | K3-2 Region/loop extraction with holes, duplicate curves warning | SK-11 exact areas, SK-12 3 profiles | TODO |
-| K-4 Determinism | K4-1 Document-level rebuild 100× Windows + Linux | bit-identical coords, volume rel 1e-12 (TX-DET) | TODO |
-| M1 App shell + CI | Cargo workspace at repo root (solver, domain, kernel, app) | builds Win/Linux(/macOS) | TODO |
+| K-3 Profile detection | K3-2 Region/loop extraction with holes, duplicate curves warning | SK-11 exact areas, SK-12 3 profiles | DONE (covered by existing tests sk11/sk12/f75 in poc/sketch-solver) |
+| K-4 Determinism | K4-1 Document-level rebuild 100× Windows + Linux | bit-identical coords, volume rel 1e-12 (TX-DET) | DONE (poc/kernel-spike/det; re-verified 2026-10-14: Windows 100x run identical to golden, which matches Linux) |
+| M1 App shell + CI | Cargo workspace at repo root (solver, domain, kernel, app) | builds Win/Linux(/macOS) | NEXT |
 | M1 App shell + CI | GitHub Actions matrix windows/ubuntu/macos, clippy, wasm32 check | CI green | TODO |
 | M1 App shell + CI | UI framework spike egui vs Slint vs Dioxus (web support is a criterion) | decision record; label needs-user-review | TODO |
 | M1 App shell + CI | CommandBus skeleton + diagnostics sink (H.5 codes) | empty window, log viewer, cold start < 2 s | TODO |
