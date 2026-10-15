@@ -5,6 +5,7 @@ members = [
     "crates/mkcad-kernel",
     "crates/mkcad-domain",
     "crates/mkcad-app",
+    "crates/mkcad-render",
 ]
 
 [workspace.package]

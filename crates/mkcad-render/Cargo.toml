@@ -1,0 +1,15 @@
+[package]
+name = "mkcad-render"
+version.workspace = true
+edition.workspace = true
+description = "Headless GPU rendering for mkcad"
+publish.workspace = true
+
+[dependencies]
+wgpu = "0.19"
+pollster = "0.3"
+bytemuck = { version = "1.14", features = ["derive"] }
+png = "0.17"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full"] }
