@@ -48,4 +48,4 @@ Status legend: DONE · NEXT · TODO
 
 ## Jira sync
 
-Jira project MKCAD does not exist on mikhako.atlassian.net (checked 2026-10-14); the Atlassian connector cannot create projects. Create it manually (key MKCAD, Jira Software), then sync this table.
+Jira project key is `CAD` (name "MK CAD") on mikhako.atlassian.net, synced 2026-10-14: epics CAD-1..CAD-24 (K-1..K-4, M1..M17, Python API, Web edition, AI assistance), tasks CAD-25..CAD-40 for the rows through M3. Rows with `needs-user-review` are labelled and assigned to the owner. M4+ epics have no child tasks yet; create them when the epic starts.
