@@ -1,0 +1,107 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  pure:
+    name: Build & Test (Pure Crates)
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build
+        run: cargo build -p mkcad-solver -p mkcad-domain -p mkcad-app --verbose
+
+      - name: Test
+        run: cargo test -p mkcad-solver -p mkcad-domain -p mkcad-app --verbose
+
+  lint:
+    name: Clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Run Clippy
+        run: cargo clippy -p mkcad-solver -p mkcad-domain -p mkcad-app -- -D warnings
+
+  wasm:
+    name: WASM32 Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Add wasm32-unknown-unknown target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Check wasm32-unknown-unknown
+        run: cargo check -p mkcad-solver --target wasm32-unknown-unknown
+
+  kernel:
+    name: OCCT Kernel
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Setup vcpkg (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          git clone https://github.com/Microsoft/vcpkg.git C:\vcpkg
+          cd C:\vcpkg
+          .\bootstrap-vcpkg.bat
+          .\vcpkg integrate install
+        shell: pwsh
+
+      - name: Install OCCT via vcpkg (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          C:\vcpkg\vcpkg install opencascade:x64-windows
+        shell: pwsh
+
+      - name: Setup vcpkg (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          git clone https://github.com/Microsoft/vcpkg.git ~/vcpkg
+          cd ~/vcpkg
+          ./bootstrap-vcpkg.sh
+
+      - name: Install OCCT via vcpkg (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          ~/vcpkg/vcpkg install opencascade:x64-linux
+
+      - name: Set OCCT_DIR (Windows)
+        if: runner.os == 'Windows'
+        run: echo "OCCT_DIR=C:\vcpkg\installed\x64-windows" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        shell: pwsh
+
+      - name: Set OCCT_DIR (Linux)
+        if: runner.os == 'Linux'
+        run: echo "OCCT_DIR=$HOME/vcpkg/installed/x64-linux" >> $GITHUB_ENV
+
+      - name: Build Kernel
+        run: cargo build -p mkcad-kernel --verbose
+
+      - name: Test Kernel
+        run: cargo test -p mkcad-kernel --verbose
