@@ -1,4 +1,4 @@
-use occt_kernel::Shape;
+use mkcad_kernel::Shape;
 
 #[test]
 fn test_box_properties() {

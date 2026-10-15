@@ -1,9 +1,9 @@
 [package]
-name = "sketch-solver"
-version = "0.1.0"
-edition = "2024"
-description = "PoC K-1: deterministic, explainable 2D geometric constraint solver"
-publish = false
+name = "mkcad-solver"
+version.workspace = true
+edition.workspace = true
+description = "Deterministic, explainable 2D geometric constraint solver"
+publish.workspace = true
 
 [dependencies]
 libm = "0.2.16"

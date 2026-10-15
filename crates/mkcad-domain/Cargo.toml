@@ -1,0 +1,10 @@
+[package]
+name = "mkcad-domain"
+version.workspace = true
+edition.workspace = true
+description = "Document and identifier types for mkcad"
+publish.workspace = true
+
+[dependencies]
+
+[dev-dependencies]

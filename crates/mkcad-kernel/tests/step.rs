@@ -1,6 +1,6 @@
 //! STEP AP242 round-trip spike: schema header, units, geometry equality after re-import, idempotent re-export.
 
-use occt_kernel::Shape;
+use mkcad_kernel::Shape;
 use std::path::PathBuf;
 
 fn tmp(name: &str) -> PathBuf {
@@ -18,7 +18,7 @@ fn part() -> Result<Shape, Box<dyn std::error::Error>> {
     let edge_count = g.edge_count()?;
     if edge_count > 0 {
         let edges = vec![0]; // Fillet the first edge
-        let op = occt_kernel::Op::fillet(&g, &edges, 2.0)?;
+        let op = mkcad_kernel::Op::fillet(&g, &edges, 2.0)?;
         Ok(op.shape()?)
     } else {
         Ok(g)

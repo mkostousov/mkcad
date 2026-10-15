@@ -1,7 +1,7 @@
 //! K-3: profile detection (F.8) — SK-01/10/11/12 and the F73–F76 reference cases.
 
-use sketch_solver::profiles::{TOL_LIN, detect_profiles};
-use sketch_solver::{Code, Curve, CurveGeom, CurveId, Point, PointId, Provenance, Sketch};
+use mkcad_solver::profiles::{TOL_LIN, detect_profiles};
+use mkcad_solver::{Code, Curve, CurveGeom, CurveId, Point, PointId, Provenance, Sketch};
 use std::f64::consts::PI;
 
 #[derive(Default)]

@@ -1,4 +1,4 @@
-use occt_kernel::{Kind, Op, Shape};
+use mkcad_kernel::{Kind, Op, Shape};
 use std::f64::consts::PI;
 
 #[test]

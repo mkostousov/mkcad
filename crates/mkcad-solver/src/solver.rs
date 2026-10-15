@@ -139,10 +139,10 @@ fn fixed_slots(sk: &Sketch, slots: &Slots, active: &dyn Fn(&Constraint) -> bool)
                 fixed[s[0]] = true;
                 fixed[s[1]] = true;
             }
-            if let EntityRef::Curve(cid) = entity
-                && let Some(&r) = slots.rad.get(&cid)
-            {
-                fixed[r] = true;
+            if let EntityRef::Curve(cid) = entity {
+                if let Some(&r) = slots.rad.get(&cid) {
+                    fixed[r] = true;
+                }
             }
         }
     }
@@ -226,10 +226,10 @@ fn build(sk: &Sketch, active: &dyn Fn(&Constraint) -> bool, edit: &EditContext, 
                 winv[s] = 100.0;
             }
         }
-        if let EntityRef::Curve(c) = e
-            && let Some(&s) = slots.rad.get(c)
-        {
-            winv[s] = 100.0;
+        if let EntityRef::Curve(c) = e {
+            if let Some(&s) = slots.rad.get(c) {
+                winv[s] = 100.0;
+            }
         }
     }
     Problem { slots, eqs, n_hard, fixed, winv }
@@ -574,14 +574,14 @@ fn run_from(
     let (clusters, constant) = decompose(&p);
     let mut vals = p.slots.vals.clone();
     for e in nudge {
-        if let EntityRef::Curve(c) = *e
-            && let Some((a, b)) = sk.curve(c).line_points()
-        {
-            let (sa, sb) = (p.slots.p(a), p.slots.p(b));
-            let (d0, d1) = (vals[sb[0]] - vals[sa[0]], vals[sb[1]] - vals[sa[1]]);
-            let (end, sign) = if p.fixed[sb[0]] { (sa, -1.0) } else { (sb, 1.0) };
-            vals[end[0]] -= sign * 1e-3 * d1;
-            vals[end[1]] += sign * 1e-3 * d0;
+        if let EntityRef::Curve(c) = *e {
+            if let Some((a, b)) = sk.curve(c).line_points() {
+                let (sa, sb) = (p.slots.p(a), p.slots.p(b));
+                let (d0, d1) = (vals[sb[0]] - vals[sa[0]], vals[sb[1]] - vals[sa[1]]);
+                let (end, sign) = if p.fixed[sb[0]] { (sa, -1.0) } else { (sb, 1.0) };
+                vals[end[0]] -= sign * 1e-3 * d1;
+                vals[end[1]] += sign * 1e-3 * d0;
+            }
         }
     }
     let mut outcomes = Vec::with_capacity(clusters.len());
@@ -788,14 +788,14 @@ pub fn solve(sk: &Sketch, edit: &EditContext, opts: &SolveOptions) -> SolveResul
         let before = corner_signs(sk);
         if flipped(&before, &corner_signs(&solved)) {
             for steps in [2, 4, 8, 16] {
-                if let Some(s) = continuation(sk, edit, opts, scale, steps)
-                    && !flipped(&before, &corner_signs(&s))
-                {
-                    // Re-run from the continuation result so the analysis below sees its state.
-                    r = run(&s, &|_| true, &EditContext::default(), opts, scale);
-                    solved = s;
-                    r.p.slots.store(&mut solved);
-                    break;
+                if let Some(s) = continuation(sk, edit, opts, scale, steps) {
+                    if !flipped(&before, &corner_signs(&s)) {
+                        // Re-run from the continuation result so the analysis below sees its state.
+                        r = run(&s, &|_| true, &EditContext::default(), opts, scale);
+                        solved = s;
+                        r.p.slots.store(&mut solved);
+                        break;
+                    }
                 }
             }
         }
@@ -858,10 +858,10 @@ fn analyze(orig: &Sketch, mut solved: Sketch, r: Run, opts: &SolveOptions, scale
             set.sort();
             set.dedup();
             if res[*row].abs() <= opts.tol {
-                if let Some(id) = id
-                    && !redundant.iter().any(|(r, _)| *r == id)
-                {
-                    redundant.push((id, set));
+                if let Some(id) = id {
+                    if !redundant.iter().any(|(r, _)| *r == id) {
+                        redundant.push((id, set));
+                    }
                 }
             } else {
                 conflict_sets.push(set);
@@ -898,10 +898,10 @@ fn analyze(orig: &Sketch, mut solved: Sketch, r: Run, opts: &SolveOptions, scale
         set.sort();
         set.dedup();
         if p.eqs[e].prim.eval(vals).val.abs() <= opts.tol {
-            if let Some(id) = id
-                && !redundant.iter().any(|(r, _)| *r == id)
-            {
-                redundant.push((id, set));
+            if let Some(id) = id {
+                if !redundant.iter().any(|(r, _)| *r == id) {
+                    redundant.push((id, set));
+                }
             }
         } else {
             conflict_sets.push(set);

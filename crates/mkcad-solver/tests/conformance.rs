@@ -6,7 +6,7 @@
 //! bit-identical final document (determinism, SK-16 / TX-DET).
 
 use serde_json::{Map, Value, json};
-use sketch_solver::*;
+use mkcad_solver::*;
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -194,10 +194,10 @@ fn check(ctx: &Ctx, e: &Value, out: Outcome, before: &Sketch, undo_before: usize
             return Err(format!("undo depth changed {undo_before} → {}", ctx.doc.undo_depth()));
         }
     }
-    if let Some(n) = e.get("undo_depth").and_then(Value::as_u64)
-        && ctx.doc.undo_depth() as u64 != n
-    {
-        return Err(format!("undo depth {} != {n}", ctx.doc.undo_depth()));
+    if let Some(n) = e.get("undo_depth").and_then(Value::as_u64) {
+        if ctx.doc.undo_depth() as u64 != n {
+            return Err(format!("undo depth {} != {n}", ctx.doc.undo_depth()));
+        }
     }
     if e.get("status").is_some() || e.get("dof").is_some() || e.get("entity_dof").is_some() {
         let a = ctx.doc.analyze();
@@ -207,10 +207,10 @@ fn check(ctx: &Ctx, e: &Value, out: Outcome, before: &Sketch, undo_before: usize
                 return Err(format!("status {got} != {s} ({:?})", a.diagnostics));
             }
         }
-        if let Some(d) = e.get("dof").and_then(Value::as_u64)
-            && a.dof as u64 != d
-        {
-            return Err(format!("dof {} != {d}", a.dof));
+        if let Some(d) = e.get("dof").and_then(Value::as_u64) {
+            if a.dof as u64 != d {
+                return Err(format!("dof {} != {d}", a.dof));
+            }
         }
         if let Some(m) = e.get("entity_dof").and_then(Value::as_object) {
             for (name, want) in m {
@@ -327,16 +327,17 @@ fn check(ctx: &Ctx, e: &Value, out: Outcome, before: &Sketch, undo_before: usize
             return Err(format!("area {area} != {}", a["value"]));
         }
     }
-    if let Some(l) = e.get("snapshot_eq").and_then(Value::as_str)
-        && ctx.snaps.get(l) != Some(&snap(sk))
-    {
-        return Err(format!("document differs from snapshot '{l}'"));
+    if let Some(l) = e.get("snapshot_eq").and_then(Value::as_str) {
+        if ctx.snaps.get(l) != Some(&snap(sk)) {
+            return Err(format!("document differs from snapshot '{l}'"));
+        }
     }
-    if let Some(n) = e.get("modified_count").and_then(Value::as_u64)
-        && let Ok(a) = &out
-        && a.op.modified.len() as u64 != n
-    {
-        return Err(format!("modified {:?}", a.op.modified));
+    if let Some(n) = e.get("modified_count").and_then(Value::as_u64) {
+        if let Ok(a) = &out {
+            if a.op.modified.len() as u64 != n {
+                return Err(format!("modified {:?}", a.op.modified));
+            }
+        }
     }
     Ok(())
 }

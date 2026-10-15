@@ -1,0 +1,12 @@
+[package]
+name = "mkcad-kernel"
+version.workspace = true
+edition.workspace = true
+description = "OCCT 3D kernel binding via C++ shim"
+publish.workspace = true
+
+[build-dependencies]
+cc = "1"
+
+[lib]
+name = "mkcad_kernel"

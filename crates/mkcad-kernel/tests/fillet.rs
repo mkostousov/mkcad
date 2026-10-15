@@ -2,14 +2,14 @@
 //! A fillet either succeeds with a valid solid and measurable volume loss, or fails with an error —
 //! never a crash and never an invalid solid.
 
-use occt_kernel::{Op, Shape};
+use mkcad_kernel::{Op, Shape};
 use std::f64::consts::FRAC_PI_4;
 
 const W: f64 = 60.0;
 const D: f64 = 40.0;
 const H: f64 = 25.0;
 
-fn block() -> Result<Shape, occt_kernel::KernelError> {
+fn block() -> Result<Shape, mkcad_kernel::KernelError> {
     Shape::prism_polygon(&[(0.0, 0.0), (W, 0.0), (W, D), (0.0, D)], H)
 }
 

@@ -1,0 +1,14 @@
+[package]
+name = "mkcad-app"
+version.workspace = true
+edition.workspace = true
+description = "mkcad application"
+publish.workspace = true
+
+[[bin]]
+name = "mkcad"
+path = "src/main.rs"
+
+[dependencies]
+
+[dev-dependencies]

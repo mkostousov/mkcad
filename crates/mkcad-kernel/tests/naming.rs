@@ -3,8 +3,8 @@
 //! This module tests the naming model (G.4) wired to real OCCT kernel operations,
 //! replaying the reference scenarios from the conformance suite.
 
-use occt_kernel::naming::*;
-use occt_kernel::{Op, Shape};
+use mkcad_kernel::naming::*;
+use mkcad_kernel::{Op, Shape};
 
 /// REF-01: Unrelated upstream insert (should be exact).
 ///

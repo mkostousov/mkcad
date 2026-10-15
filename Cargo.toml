@@ -1,0 +1,22 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/mkcad-solver",
+    "crates/mkcad-kernel",
+    "crates/mkcad-domain",
+    "crates/mkcad-app",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[workspace.lints.rust]
+unsafe_code = "warn"
+unused_crate_dependencies = "warn"
+
+[workspace.lints.clippy]
+all = "warn"
+pedantic = "warn"
+nursery = "warn"

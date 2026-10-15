@@ -597,10 +597,10 @@ mod tests {
             ];
             for prim in &prims {
                 // Stay away from the ±π cut of the angle residual where it is discontinuous.
-                if let Prim::Angle { .. } = prim
-                    && prim.eval(&v).val.abs() > 0.9 * 3.0 * PI
-                {
-                    continue;
+                if let Prim::Angle { .. } = prim {
+                    if prim.eval(&v).val.abs() > 0.9 * 3.0 * PI {
+                        continue;
+                    }
                 }
                 check_fd(prim, &v);
             }
