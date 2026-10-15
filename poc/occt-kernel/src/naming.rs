@@ -25,7 +25,7 @@
 //!    `REF.AMBIGUOUS` and the previous body continues (cached geometry).
 
 use std::collections::{HashMap, HashSet};
-use crate::{Kind, Shape};
+use crate::{Kind, Op, Shape};
 
 /// A topological label identifying a face or edge in the result of an operation.
 ///
@@ -199,7 +199,7 @@ pub enum ResolutionResult {
 /// propagating them via the operation history (modified/generated/deleted).
 pub struct Timeline {
     /// Map from face index to set of labels (a face can have multiple labels).
-    face_labels: HashMap<usize, HashSet<Label>>,
+    pub face_labels: HashMap<usize, HashSet<Label>>,
 }
 
 impl Timeline {
@@ -319,6 +319,98 @@ impl Default for Timeline {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// Helper to propagate labels through a kernel operation.
+///
+/// Given an operation result and the previous label state, this updates the timeline
+/// to track labels through the operation's history.
+///
+/// Returns the updated face_labels map for the result shape.
+pub fn propagate_op_history(
+    op: &Op,
+    prev_labels: &HashMap<usize, HashSet<Label>>,
+) -> Result<HashMap<usize, HashSet<Label>>, String> {
+    let result_shape = op.shape().map_err(|e| format!("{:?}", e))?;
+    let face_count = result_shape.count(Kind::Face).map_err(|e| format!("{:?}", e))?;
+
+    let mut new_labels: HashMap<usize, HashSet<Label>> = HashMap::new();
+
+    // For each result face, look at its sources from the input (operand 0)
+    for result_face_idx in 0..face_count {
+        // Get all input faces that contributed to this result face
+        let modified = op
+            .modified(0, Kind::Face, result_face_idx)
+            .ok()
+            .unwrap_or_default();
+
+        // Collect all labels from input faces
+        let mut inherited = HashSet::new();
+        for input_face_idx in modified {
+            if let Some(input_labels) = prev_labels.get(&input_face_idx) {
+                inherited.extend(input_labels.iter().cloned());
+            }
+        }
+
+        // Also check generated faces (from edges/vertices being modified)
+        if inherited.is_empty() {
+            // Check if this face was generated from input edges
+            for edge_idx in 0..=256 {
+                if let Ok(generated) = op.generated(0, Kind::Edge, edge_idx) {
+                    for (kind, idx) in generated {
+                        if kind == Kind::Face && idx == result_face_idx {
+                            // This face was generated from an edge; mark it for potential new labeling
+                            // For now, preserve input labels if they exist
+                        }
+                    }
+                }
+            }
+        }
+
+        if !inherited.is_empty() {
+            new_labels.insert(result_face_idx, inherited);
+        }
+    }
+
+    Ok(new_labels)
+}
+
+/// Initialize labels for an extrusion result.
+///
+/// Given a polygon profile with named curve IDs, creates initial labels
+/// for the extrusion result: side faces from profile curves, plus two cap faces.
+///
+/// # Arguments
+/// - `profile_curve_ids`: list of curve IDs in the profile (in order of sides)
+///
+/// # Returns
+/// A HashMap mapping result face indices to their initial labels.
+///
+/// The expected result layout is:
+/// - Faces 0..n-1: side faces from profile curves (n side faces)
+/// - Face n: start cap
+/// - Face n+1: end cap
+pub fn init_extrude_labels(profile_curve_ids: &[u64]) -> HashMap<usize, HashSet<Label>> {
+    let mut labels = HashMap::new();
+
+    // Initialize side faces (one per profile curve)
+    for (i, curve_id) in profile_curve_ids.iter().enumerate() {
+        let mut label_set = HashSet::new();
+        label_set.insert(Label::side(*curve_id));
+        labels.insert(i, label_set);
+    }
+
+    // Initialize caps
+    let n_sides = profile_curve_ids.len();
+    let mut start_cap = HashSet::new();
+    start_cap.insert(Label::cap(true));
+    labels.insert(n_sides, start_cap);
+
+    let mut end_cap = HashSet::new();
+    end_cap.insert(Label::cap(false));
+    labels.insert(n_sides + 1, end_cap);
+
+    labels
 }
 
 #[cfg(test)]
