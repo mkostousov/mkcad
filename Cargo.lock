@@ -1109,6 +1109,7 @@ dependencies = [
  "objc",
  "parking_lot",
  "percent-encoding",
+ "pollster",
  "raw-window-handle 0.5.2",
  "raw-window-handle 0.6.2",
  "static_assertions",
@@ -1117,6 +1118,7 @@ dependencies = [
  "wasm-bindgen-futures",
  "web-sys",
  "web-time",
+ "wgpu",
  "winapi",
  "winit",
 ]
@@ -2243,7 +2245,9 @@ version = "0.1.0"
 dependencies = [
  "eframe",
  "egui",
+ "glam 0.27.0",
  "mkcad-domain",
+ "mkcad-render",
  "mkcad-solver",
  "serde_json",
 ]

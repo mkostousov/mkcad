@@ -12,7 +12,9 @@ path = "src/main.rs"
 [dependencies]
 mkcad-domain = { path = "../mkcad-domain" }
 mkcad-solver = { path = "../mkcad-solver" }
-eframe = "0.27"
+eframe = { version = "0.27", features = ["wgpu"] }
+mkcad-render = { path = "../mkcad-render" }
+glam = "0.27"
 egui = "0.27"
 serde_json = "1.0.154"
 

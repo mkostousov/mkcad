@@ -16,7 +16,9 @@ const ID_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::R32Uint;
 /// MSAA sample count of the colour pass.
 pub const SAMPLE_COUNT: u32 = 4;
 
-const BACKGROUND: wgpu::Color = wgpu::Color { r: 0.16, g: 0.17, b: 0.19, a: 1.0 };
+/// Background, sRGB 0.16/0.17/0.19 (colours in this module are given in sRGB and linearised for the
+/// sRGB render target).
+const BACKGROUND_SRGB: [f32; 3] = [0.16, 0.17, 0.19];
 const HIGHLIGHT: [f32; 4] = [1.0, 0.62, 0.12, 1.0];
 
 const SHADED_SHADER: &str = r"
@@ -36,9 +38,12 @@ struct VsOut { @builtin(position) clip: vec4<f32>, @location(0) normal: vec3<f32
 }
 
 @fragment fn fs_main(i: VsOut) -> @location(0) vec4<f32> {
-    // Headlight: light comes from the camera, both faces lit (open shells stay readable).
-    let d = abs(dot(normalize(i.normal), normalize(cam.light_dir.xyz)));
-    return vec4<f32>(obj.color.rgb * (0.3 + 0.7 * d), obj.color.a);
+    // Headlight from the camera (both sides lit, open shells stay readable) plus a sky light from +Z
+    // so that faces at similar angles to the view still differ.
+    let n = normalize(i.normal);
+    let head = abs(dot(n, normalize(cam.light_dir.xyz)));
+    let sky = 0.5 + 0.5 * n.z;
+    return vec4<f32>(obj.color.rgb * (0.18 + 0.55 * head + 0.27 * sky), obj.color.a);
 }
 
 @fragment fn fs_id(i: VsOut) -> @location(0) u32 {
@@ -436,7 +441,7 @@ impl ViewportRenderer {
         });
         let uniform = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("viewport mesh obj"),
-            contents: bytemuck::bytes_of(&ObjUniform { color, id: [id, 0, 0, 0] }),
+            contents: bytemuck::bytes_of(&ObjUniform { color: linear_rgba(color), id: [id, 0, 0, 0] }),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -471,7 +476,7 @@ impl ViewportRenderer {
     pub fn set_highlight(&mut self, queue: &wgpu::Queue, id: Option<u32>) {
         self.highlight = id;
         for m in &self.meshes {
-            let color = if Some(m.id) == id { HIGHLIGHT } else { m.color };
+            let color = linear_rgba(if Some(m.id) == id { HIGHLIGHT } else { m.color });
             queue.write_buffer(&m.uniform, 0, bytemuck::bytes_of(&ObjUniform { color, id: [m.id, 0, 0, 0] }));
         }
     }
@@ -499,7 +504,7 @@ impl ViewportRenderer {
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &self.targets.msaa_view,
                     resolve_target: Some(&self.targets.color_view),
-                    ops: wgpu::Operations { load: wgpu::LoadOp::Clear(BACKGROUND), store: wgpu::StoreOp::Discard },
+                    ops: wgpu::Operations { load: wgpu::LoadOp::Clear(background()), store: wgpu::StoreOp::Discard },
                 })],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                     view: &self.targets.depth_view,
@@ -616,6 +621,19 @@ impl ViewportRenderer {
     }
 }
 
+/// sRGB-encoded component (0..1) to linear.
+fn srgb_to_linear(c: f32) -> f32 {
+    if c <= 0.040_45 {
+        c / 12.92
+    } else {
+        ((c + 0.055) / 1.055).powf(2.4)
+    }
+}
+
+fn linear_rgba(c: [f32; 4]) -> [f32; 4] {
+    [srgb_to_linear(c[0]), srgb_to_linear(c[1]), srgb_to_linear(c[2]), c[3]]
+}
+
 fn read_mapped<T>(device: &wgpu::Device, buffer: &wgpu::Buffer, f: impl FnOnce(&[u8]) -> T) -> Option<T> {
     let slice = buffer.slice(..);
     let (tx, rx) = std::sync::mpsc::channel();
@@ -629,15 +647,21 @@ fn read_mapped<T>(device: &wgpu::Device, buffer: &wgpu::Buffer, f: impl FnOnce(&
     Some(value)
 }
 
+fn background() -> wgpu::Color {
+    let [r, g, b] = BACKGROUND_SRGB.map(srgb_to_linear);
+    wgpu::Color { r: f64::from(r), g: f64::from(g), b: f64::from(b), a: 1.0 }
+}
+
 /// XY-plane grid (Z up) of half-extent `size`/2 with minor lines every `step` mm and a major line
 /// every `major_every` steps; X axis red, Y axis green, short Z axis blue.
 fn grid_lines(size: f32, step: f32, major_every: i32) -> Vec<LineVertex> {
     let half = size / 2.0;
     let n = (half / step).round() as i32;
-    let minor = [0.42, 0.44, 0.48, 0.35];
-    let major = [0.55, 0.57, 0.62, 0.7];
+    let minor = [0.42, 0.44, 0.48, 0.3];
+    let major = [0.55, 0.57, 0.62, 0.6];
     let mut v = Vec::new();
     let mut line = |a: [f32; 3], b: [f32; 3], color: [f32; 4]| {
+        let color = linear_rgba(color);
         v.push(LineVertex { pos: a, color });
         v.push(LineVertex { pos: b, color });
     };
