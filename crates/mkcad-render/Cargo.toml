@@ -10,6 +10,8 @@ wgpu = "0.19"
 pollster = "0.3"
 bytemuck = { version = "1.14", features = ["derive"] }
 png = "0.17"
+glam = { version = "0.27", features = ["mint"] }
+image = "0.24"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }

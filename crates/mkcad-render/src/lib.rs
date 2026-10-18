@@ -1,3 +1,7 @@
+pub mod camera;
+
+pub use camera::Camera;
+
 use std::error::Error;
 use std::fmt;
 use wgpu::{
@@ -6,6 +10,7 @@ use wgpu::{
     TextureDimension, TextureFormat, TextureUsages,
 };
 use wgpu::util::DeviceExt;
+use glam::Vec3;
 
 /// Rendering error type
 #[derive(Debug)]
@@ -388,6 +393,59 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 }
 "#;
 
+/// Shader for picking (ID rendering)
+#[allow(dead_code)]
+const PICKING_SHADER: &str = r#"
+struct VertexInput {
+    @location(0) position: vec3<f32>,
+    @location(1) id: u32,
+};
+
+@vertex
+fn vs_main(in: VertexInput) -> @builtin(position) vec4<f32> {
+    return vec4<f32>(in.position, 1.0);
+}
+
+@fragment
+fn fs_main(in: @builtin(position) pos: vec4<f32>) -> @location(0) u32 {
+    return u32(0u);
+}
+"#;
+
+/// Shader with transform for rendering
+#[allow(dead_code)]
+const TRANSFORM_SHADER: &str = r#"
+struct Transforms {
+    view_proj: mat4x4<f32>,
+};
+
+@group(0) @binding(0)
+var<uniform> transforms: Transforms;
+
+struct VertexOutput {
+    @builtin(position) position: vec4<f32>,
+    @location(0) color: vec4<f32>,
+};
+
+struct VertexInput {
+    @location(0) position: vec3<f32>,
+    @location(1) color: vec4<f32>,
+};
+
+@vertex
+fn vs_main(in: VertexInput) -> VertexOutput {
+    var out: VertexOutput;
+    out.position = transforms.view_proj * vec4<f32>(in.position, 1.0);
+    out.color = in.color;
+    return out;
+}
+
+@fragment
+fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    return in.color;
+}
+"#;
+
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Vertex {
@@ -584,4 +642,281 @@ pub fn render_test_scene(
     queue.submit(std::iter::once(encoder.finish()));
 
     Ok(())
+}
+
+/// Generate a grid mesh with colored axes
+/// size: total grid size (in world units)
+/// divisions: number of divisions (each unit becomes 1 line)
+pub fn create_grid_vertices(
+    size: f32,
+    divisions: u32,
+) -> Vec<Vertex> {
+    let mut vertices = Vec::new();
+    let step = size / divisions as f32;
+
+    let _dark_bg = [0.1, 0.1, 0.1, 1.0];      // Dark background
+    let minor_color = [0.3, 0.3, 0.3, 0.8];  // Gray for minor lines (every 1 unit)
+    let major_color = [0.7, 0.7, 0.7, 1.0];  // Bright gray for major lines (every 10 units)
+    let x_axis_color = [1.0, 0.0, 0.0, 1.0]; // Red for X axis
+    let z_axis_color = [0.0, 1.0, 0.0, 1.0]; // Green for Z axis
+
+    let eps = 0.0001;
+
+    // Lines parallel to X axis (horizontal in Top view)
+    for i in 0..=divisions {
+        let z = -size / 2.0 + i as f32 * step;
+
+        // Determine color: Z axis (z=0) is green, major lines are bright, minor lines are dim
+        let color = if z.abs() < eps {
+            z_axis_color
+        } else if i % 10 == 0 {
+            major_color
+        } else {
+            minor_color
+        };
+
+        // Render as quad (two triangles) to get consistent line width
+        let half_width = 0.15; // Line thickness in world units (~2 pixels at this scale)
+        vertices.push(Vertex { position: [-size / 2.0, -eps, z - half_width], color });
+        vertices.push(Vertex { position: [size / 2.0, -eps, z - half_width], color });
+        vertices.push(Vertex { position: [size / 2.0, -eps, z + half_width], color });
+
+        vertices.push(Vertex { position: [-size / 2.0, -eps, z - half_width], color });
+        vertices.push(Vertex { position: [size / 2.0, -eps, z + half_width], color });
+        vertices.push(Vertex { position: [-size / 2.0, -eps, z + half_width], color });
+    }
+
+    // Lines parallel to Z axis (vertical in Top view)
+    for i in 0..=divisions {
+        let x = -size / 2.0 + i as f32 * step;
+
+        // Determine color: X axis (x=0) is red, major lines are bright, minor lines are dim
+        let color = if x.abs() < eps {
+            x_axis_color
+        } else if i % 10 == 0 {
+            major_color
+        } else {
+            minor_color
+        };
+
+        // Render as quad (two triangles) to get consistent line width
+        let half_width = 0.15; // Line thickness in world units (~2 pixels at this scale)
+        vertices.push(Vertex { position: [x - half_width, -eps, -size / 2.0], color });
+        vertices.push(Vertex { position: [x + half_width, -eps, -size / 2.0], color });
+        vertices.push(Vertex { position: [x + half_width, -eps, size / 2.0], color });
+
+        vertices.push(Vertex { position: [x - half_width, -eps, -size / 2.0], color });
+        vertices.push(Vertex { position: [x + half_width, -eps, size / 2.0], color });
+        vertices.push(Vertex { position: [x - half_width, -eps, size / 2.0], color });
+    }
+
+    vertices
+}
+
+/// Create vertices for multiple colored quads/cubes
+pub fn create_cube_vertices(center: Vec3, size: f32, id: u32) -> Vec<Vertex> {
+    let h = size / 2.0;
+    let color = id_to_color(id);
+
+    vec![
+        // Front face
+        Vertex { position: (center + Vec3::new(-h, -h, h)).to_array(), color },
+        Vertex { position: (center + Vec3::new(h, -h, h)).to_array(), color },
+        Vertex { position: (center + Vec3::new(h, h, h)).to_array(), color },
+        Vertex { position: (center + Vec3::new(-h, h, h)).to_array(), color },
+
+        // Back face
+        Vertex { position: (center + Vec3::new(-h, -h, -h)).to_array(), color },
+        Vertex { position: (center + Vec3::new(-h, h, -h)).to_array(), color },
+        Vertex { position: (center + Vec3::new(h, h, -h)).to_array(), color },
+        Vertex { position: (center + Vec3::new(h, -h, -h)).to_array(), color },
+    ]
+}
+
+fn id_to_color(id: u32) -> [f32; 4] {
+    let r = (id & 0xFF) as f32 / 255.0;
+    let g = ((id >> 8) & 0xFF) as f32 / 255.0;
+    let b = ((id >> 16) & 0xFF) as f32 / 255.0;
+    [r, g, b, 1.0]
+}
+
+/// Offscreen target with ID buffer for picking
+pub struct PickingTarget {
+    width: u32,
+    height: u32,
+    #[allow(dead_code)]
+    id_texture: wgpu::Texture,
+    id_view: wgpu::TextureView,
+    #[allow(dead_code)]
+    depth_texture: wgpu::Texture,
+    depth_view: wgpu::TextureView,
+    resolve_texture: wgpu::Texture,
+    staging_buffer: wgpu::Buffer,
+    #[allow(dead_code)]
+    staging_buffer_size: u64,
+}
+
+impl PickingTarget {
+    pub fn new(ctx: &GpuContext, width: u32, height: u32) -> Result<Self, RenderError> {
+        let device = ctx.device();
+
+        // ID texture (R32Uint)
+        let id_texture = device.create_texture(&TextureDescriptor {
+            label: Some("picking id texture"),
+            size: Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: TextureDimension::D2,
+            format: TextureFormat::R32Uint,
+            usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::COPY_SRC,
+            view_formats: &[],
+        });
+
+        let id_view = id_texture.create_view(&Default::default());
+
+        // Resolve texture for reading
+        let resolve_texture = device.create_texture(&TextureDescriptor {
+            label: Some("picking resolve texture"),
+            size: Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: TextureDimension::D2,
+            format: TextureFormat::R32Uint,
+            usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::COPY_SRC,
+            view_formats: &[],
+        });
+
+        // Depth texture
+        let depth_texture = device.create_texture(&TextureDescriptor {
+            label: Some("picking depth texture"),
+            size: Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: TextureDimension::D2,
+            format: TextureFormat::Depth32Float,
+            usage: TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[],
+        });
+
+        let depth_view = depth_texture.create_view(&Default::default());
+
+        // Staging buffer for reading
+        let bytes_per_pixel = 4; // R32Uint = 4 bytes
+        let unpadded_bytes_per_row = width * bytes_per_pixel;
+        let padding = (256 - (unpadded_bytes_per_row % 256)) % 256;
+        let bytes_per_row = unpadded_bytes_per_row + padding;
+        let staging_buffer_size = (bytes_per_row * height) as u64;
+
+        let staging_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("picking staging buffer"),
+            size: staging_buffer_size,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+
+        Ok(PickingTarget {
+            width,
+            height,
+            id_texture,
+            id_view,
+            depth_texture,
+            depth_view,
+            resolve_texture,
+            staging_buffer,
+            staging_buffer_size,
+        })
+    }
+
+    pub fn id_view(&self) -> &wgpu::TextureView {
+        &self.id_view
+    }
+
+    pub fn depth_view(&self) -> &wgpu::TextureView {
+        &self.depth_view
+    }
+
+    pub fn pick(&self, ctx: &GpuContext, x: u32, y: u32) -> Result<Option<u32>, RenderError> {
+        if x >= self.width || y >= self.height {
+            return Ok(None);
+        }
+
+        let device = ctx.device();
+        let queue = ctx.queue();
+
+        // Copy single pixel to staging buffer
+        let mut encoder = device.create_command_encoder(&Default::default());
+
+        let bytes_per_pixel = 4;
+        let unpadded_bytes_per_row = self.width * bytes_per_pixel;
+        let padding = (256 - (unpadded_bytes_per_row % 256)) % 256;
+        let bytes_per_row = unpadded_bytes_per_row + padding;
+
+        encoder.copy_texture_to_buffer(
+            wgpu::ImageCopyTexture {
+                texture: &self.resolve_texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::ImageCopyBuffer {
+                buffer: &self.staging_buffer,
+                layout: wgpu::ImageDataLayout {
+                    offset: 0,
+                    bytes_per_row: Some(bytes_per_row),
+                    rows_per_image: Some(self.height),
+                },
+            },
+            Extent3d {
+                width: self.width,
+                height: self.height,
+                depth_or_array_layers: 1,
+            },
+        );
+
+        queue.submit(std::iter::once(encoder.finish()));
+        device.poll(wgpu::Maintain::Wait);
+
+        // Map and read
+        let buffer_slice = self.staging_buffer.slice(..);
+        buffer_slice.map_async(wgpu::MapMode::Read, |_| {});
+        device.poll(wgpu::Maintain::Wait);
+
+        let data = buffer_slice.get_mapped_range();
+
+        let row_offset = (y as usize) * (bytes_per_row as usize);
+        let pixel_offset = row_offset + (x as usize) * (bytes_per_pixel as usize);
+
+        let id = if pixel_offset + 4 <= data.len() {
+            let bytes = [
+                data[pixel_offset],
+                data[pixel_offset + 1],
+                data[pixel_offset + 2],
+                data[pixel_offset + 3],
+            ];
+            u32::from_le_bytes(bytes)
+        } else {
+            0
+        };
+
+        drop(data);
+        self.staging_buffer.unmap();
+
+        if id == 0 {
+            Ok(None)
+        } else {
+            Ok(Some(id))
+        }
+    }
 }
