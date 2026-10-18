@@ -1,19 +1,31 @@
+use std::path::PathBuf;
+
 fn main() {
-    let occt_dir = std::env::var("OCCT_DIR")
-        .unwrap_or_else(|_| r"C:\dev\vcpkg\installed\x64-windows".to_string());
+    let default_dir = if cfg!(windows) {
+        r"C:\dev\vcpkg\installed\x64-windows"
+    } else {
+        "/usr/local"
+    };
+    let occt_dir =
+        PathBuf::from(std::env::var("OCCT_DIR").unwrap_or_else(|_| default_dir.to_string()));
 
-    let include_dir = format!("{}\\include\\opencascade", occt_dir);
-    let lib_dir = format!("{}\\lib", occt_dir);
+    let include_dir = occt_dir.join("include").join("opencascade");
+    let lib_dir = occt_dir.join("lib");
 
-    cc::Build::new()
-        .cpp(true)
-        .file("cpp/shim.cpp")
-        .include(&include_dir)
-        .flag("/std:c++17")
-        .flag("/EHsc")
-        .compile("occt_shim");
+    let mut build = cc::Build::new();
+    build.cpp(true).file("cpp/shim.cpp").include(&include_dir);
+    if build.get_compiler().is_like_msvc() {
+        build.flag("/std:c++17").flag("/EHsc");
+    } else {
+        build.flag("-std=c++17");
+    }
+    build.compile("occt_shim");
 
-    println!("cargo:rustc-link-search=native={}", lib_dir);
+    println!("cargo:rustc-link-search=native={}", lib_dir.display());
+    if !cfg!(windows) {
+        // Find the OCCT shared libraries at test/run time without LD_LIBRARY_PATH.
+        println!("cargo:rustc-link-arg=-Wl,-rpath,{}", lib_dir.display());
+    }
 
     // Link OCCT libraries
     let tk_libs = [
