@@ -393,22 +393,64 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 }
 "#;
 
-/// Shader for picking (ID rendering)
+/// Shader for ID rendering with camera transform (unused, kept for reference)
 #[allow(dead_code)]
-const PICKING_SHADER: &str = r#"
+const ID_SHADER: &str = r#"
+struct Camera {
+    view_proj: mat4x4<f32>,
+};
+
+@group(0) @binding(0)
+var<uniform> camera: Camera;
+
 struct VertexInput {
     @location(0) position: vec3<f32>,
-    @location(1) id: u32,
 };
 
 @vertex
 fn vs_main(in: VertexInput) -> @builtin(position) vec4<f32> {
-    return vec4<f32>(in.position, 1.0);
+    return camera.view_proj * vec4<f32>(in.position, 1.0);
 }
 
 @fragment
-fn fs_main(in: @builtin(position) pos: vec4<f32>) -> @location(0) u32 {
+fn fs_main(@builtin(position) pos: vec4<f32>) -> @location(0) u32 {
+    // Note: push_constant or per-instance id would go here
+    // For now, this is patched per-draw via a uniform
     return u32(0u);
+}
+"#;
+
+/// Shader for ID rendering with per-instance ID via uniform
+const ID_SHADER_WITH_ID: &str = r#"
+struct Camera {
+    view_proj: mat4x4<f32>,
+};
+
+struct IDUniform {
+    id: u32,
+    _padding: u32,
+    _padding2: u32,
+    _padding3: u32,
+};
+
+@group(0) @binding(0)
+var<uniform> camera: Camera;
+
+@group(0) @binding(1)
+var<uniform> id_uniform: IDUniform;
+
+struct VertexInput {
+    @location(0) position: vec3<f32>,
+};
+
+@vertex
+fn vs_main(in: VertexInput) -> @builtin(position) vec4<f32> {
+    return camera.view_proj * vec4<f32>(in.position, 1.0);
+}
+
+@fragment
+fn fs_main() -> @location(0) u32 {
+    return id_uniform.id + 1u;
 }
 "#;
 
@@ -1057,6 +1099,22 @@ pub fn render_grid(ctx: &GpuContext, target: &OffscreenTarget, camera: &Camera, 
     Ok(())
 }
 
+/// A mesh with vertices, indices, and an entity ID for picking
+#[derive(Clone)]
+pub struct Mesh {
+    pub vertices: Vec<[f32; 3]>,
+    pub indices: Vec<u32>,
+    pub id: u32,
+}
+
+/// Reference to a GPU-resident mesh with buffers
+pub struct MeshRef {
+    vertex_buffer: wgpu::Buffer,
+    index_buffer: wgpu::Buffer,
+    index_count: u32,
+    id: u32,
+}
+
 /// Offscreen target with ID buffer for picking
 pub struct PickingTarget {
     width: u32,
@@ -1089,7 +1147,7 @@ impl PickingTarget {
             sample_count: 1,
             dimension: TextureDimension::D2,
             format: TextureFormat::R32Uint,
-            usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::COPY_SRC,
+            usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::COPY_SRC | TextureUsages::COPY_DST,
             view_formats: &[],
         });
 
@@ -1107,7 +1165,7 @@ impl PickingTarget {
             sample_count: 1,
             dimension: TextureDimension::D2,
             format: TextureFormat::R32Uint,
-            usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::COPY_SRC,
+            usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::COPY_SRC | TextureUsages::COPY_DST,
             view_formats: &[],
         });
 
@@ -1164,6 +1222,14 @@ impl PickingTarget {
         &self.depth_view
     }
 
+    pub fn id_texture(&self) -> &wgpu::Texture {
+        &self.id_texture
+    }
+
+    pub fn resolve_texture(&self) -> &wgpu::Texture {
+        &self.resolve_texture
+    }
+
     pub fn pick(&self, ctx: &GpuContext, x: u32, y: u32) -> Result<Option<u32>, RenderError> {
         if x >= self.width || y >= self.height {
             return Ok(None);
@@ -1172,7 +1238,7 @@ impl PickingTarget {
         let device = ctx.device();
         let queue = ctx.queue();
 
-        // Copy single pixel to staging buffer
+        // Copy full texture to staging buffer
         let mut encoder = device.create_command_encoder(&Default::default());
 
         let bytes_per_pixel = 4;
@@ -1233,7 +1299,289 @@ impl PickingTarget {
         if id == 0 {
             Ok(None)
         } else {
-            Ok(Some(id))
+            Ok(Some(id - 1)) // id was stored as id+1 to distinguish from background
         }
     }
+}
+
+impl MeshRef {
+    /// Upload a mesh to GPU buffers
+    pub fn new(ctx: &GpuContext, mesh: &Mesh) -> Result<Self, RenderError> {
+        let device = ctx.device();
+
+        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("mesh vertex buffer"),
+            contents: bytemuck::cast_slice(&mesh.vertices),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+
+        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("mesh index buffer"),
+            contents: bytemuck::cast_slice(&mesh.indices),
+            usage: wgpu::BufferUsages::INDEX,
+        });
+
+        Ok(MeshRef {
+            vertex_buffer,
+            index_buffer,
+            index_count: mesh.indices.len() as u32,
+            id: mesh.id,
+        })
+    }
+
+    pub fn vertex_buffer(&self) -> &wgpu::Buffer {
+        &self.vertex_buffer
+    }
+
+    pub fn index_buffer(&self) -> &wgpu::Buffer {
+        &self.index_buffer
+    }
+
+    pub fn index_count(&self) -> u32 {
+        self.index_count
+    }
+
+    pub fn id(&self) -> u32 {
+        self.id
+    }
+}
+
+/// Render meshes with ID colors for picking
+pub fn render_ids(
+    ctx: &GpuContext,
+    target: &PickingTarget,
+    camera: &Camera,
+    meshes: &[&MeshRef],
+) -> Result<(), RenderError> {
+    if meshes.is_empty() {
+        return Ok(());
+    }
+
+    let device = ctx.device();
+    let queue = ctx.queue();
+    let width = target.width;
+    let height = target.height;
+    let aspect = width as f32 / height as f32;
+
+    // Create shader module
+    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        label: Some("id shader"),
+        source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(ID_SHADER_WITH_ID)),
+    });
+
+    // Create bind group layout for camera and ID uniforms
+    let bind_group_layout = device.create_bind_group_layout(
+        &wgpu::BindGroupLayoutDescriptor {
+            label: Some("id bind group layout"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+            ],
+        },
+    );
+
+    // Create pipeline layout
+    let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+        label: Some("id pipeline layout"),
+        bind_group_layouts: &[&bind_group_layout],
+        push_constant_ranges: &[],
+    });
+
+    // Create render pipeline
+    let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("id pipeline"),
+        layout: Some(&pipeline_layout),
+        vertex: wgpu::VertexState {
+            module: &shader,
+            entry_point: "vs_main",
+            buffers: &[wgpu::VertexBufferLayout {
+                array_stride: std::mem::size_of::<[f32; 3]>() as u64,
+                step_mode: wgpu::VertexStepMode::Vertex,
+                attributes: &wgpu::vertex_attr_array![
+                    0 => Float32x3
+                ],
+            }],
+        },
+        primitive: wgpu::PrimitiveState {
+            topology: wgpu::PrimitiveTopology::TriangleList,
+            strip_index_format: None,
+            front_face: wgpu::FrontFace::Ccw,
+            cull_mode: None,
+            unclipped_depth: false,
+            polygon_mode: wgpu::PolygonMode::Fill,
+            conservative: false,
+        },
+        depth_stencil: Some(wgpu::DepthStencilState {
+            format: TextureFormat::Depth32Float,
+            depth_write_enabled: true,
+            depth_compare: wgpu::CompareFunction::Less,
+            stencil: Default::default(),
+            bias: Default::default(),
+        }),
+        multisample: wgpu::MultisampleState {
+            count: 1,
+            mask: !0,
+            alpha_to_coverage_enabled: false,
+        },
+        fragment: Some(wgpu::FragmentState {
+            module: &shader,
+            entry_point: "fs_main",
+            targets: &[Some(wgpu::ColorTargetState {
+                format: TextureFormat::R32Uint,
+                blend: None,
+                write_mask: wgpu::ColorWrites::ALL,
+            })],
+        }),
+        multiview: None,
+    });
+
+    // Create camera uniform buffer
+    #[repr(C)]
+    #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+    struct CameraUniform {
+        view_proj: [[f32; 4]; 4],
+    }
+
+    let vp_matrix = camera.view_projection_matrix(aspect);
+    let camera_uniform = CameraUniform {
+        view_proj: vp_matrix.to_cols_array_2d(),
+    };
+
+    let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("id camera uniform buffer"),
+        contents: bytemuck::cast_slice(&[camera_uniform]),
+        usage: wgpu::BufferUsages::UNIFORM,
+    });
+
+    // ID uniform structure
+    #[repr(C)]
+    #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+    struct IDUniform {
+        id: u32,
+        _padding: u32,
+        _padding2: u32,
+        _padding3: u32,
+    }
+
+    // Prepare buffers and bind groups for each mesh
+    let mut id_buffers = Vec::new();
+    let mut bind_groups = Vec::new();
+
+    for mesh in meshes {
+        // Create ID uniform for this mesh
+        let id_uniform = IDUniform {
+            id: mesh.id(),
+            _padding: 0,
+            _padding2: 0,
+            _padding3: 0,
+        };
+
+        let id_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("id uniform buffer"),
+            contents: bytemuck::cast_slice(&[id_uniform]),
+            usage: wgpu::BufferUsages::UNIFORM,
+        });
+
+        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("id bind group"),
+            layout: &bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: camera_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: id_buffer.as_entire_binding(),
+                },
+            ],
+        });
+
+        id_buffers.push(id_buffer);
+        bind_groups.push(bind_group);
+    }
+
+    // Create command encoder and render pass
+    let mut encoder = device.create_command_encoder(&Default::default());
+
+    {
+        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("id render pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: target.id_view(),
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color {
+                        r: 0.0,
+                        g: 0.0,
+                        b: 0.0,
+                        a: 0.0,
+                    }),
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: target.depth_view(),
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(1.0),
+                    store: wgpu::StoreOp::Store,
+                }),
+                stencil_ops: None,
+            }),
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
+
+        render_pass.set_pipeline(&pipeline);
+
+        for (i, mesh) in meshes.iter().enumerate() {
+            render_pass.set_bind_group(0, &bind_groups[i], &[]);
+            render_pass.set_vertex_buffer(0, mesh.vertex_buffer().slice(..));
+            render_pass.set_index_buffer(mesh.index_buffer().slice(..), wgpu::IndexFormat::Uint32);
+            render_pass.draw_indexed(0..mesh.index_count(), 0, 0..1);
+        }
+    }
+
+    // Copy to resolve texture (for picking)
+    encoder.copy_texture_to_texture(
+        wgpu::ImageCopyTexture {
+            texture: &target.id_texture,
+            mip_level: 0,
+            origin: wgpu::Origin3d::ZERO,
+            aspect: wgpu::TextureAspect::All,
+        },
+        wgpu::ImageCopyTexture {
+            texture: &target.resolve_texture,
+            mip_level: 0,
+            origin: wgpu::Origin3d::ZERO,
+            aspect: wgpu::TextureAspect::All,
+        },
+        Extent3d {
+            width: target.width,
+            height: target.height,
+            depth_or_array_layers: 1,
+        },
+    );
+
+    queue.submit(std::iter::once(encoder.finish()));
+
+    Ok(())
 }
