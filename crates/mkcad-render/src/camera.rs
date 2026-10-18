@@ -132,6 +132,10 @@ impl Camera {
 
         // Keep minimum distance
         self.distance = self.distance.max(0.01);
+        // Orthographic size does not depend on distance: scale the view height instead.
+        if let ProjectionMode::Orthographic(half_height) = self.projection {
+            self.projection = ProjectionMode::Orthographic((half_height * zoom_factor).max(0.001));
+        }
 
         // Get world point under cursor after zoom
         let world_point_after = self.screen_to_world_on_plane(

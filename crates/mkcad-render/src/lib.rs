@@ -1,4 +1,5 @@
 pub mod camera;
+pub mod viewport;
 
 pub use camera::Camera;
 
