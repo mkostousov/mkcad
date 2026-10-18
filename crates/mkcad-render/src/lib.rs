@@ -446,6 +446,39 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 }
 "#;
 
+/// Grid shader for rendering grid lines with camera transform
+const GRID_SHADER: &str = r#"
+struct Camera {
+    view_proj: mat4x4<f32>,
+};
+
+@group(0) @binding(0)
+var<uniform> camera: Camera;
+
+struct VertexOutput {
+    @builtin(position) position: vec4<f32>,
+    @location(0) color: vec4<f32>,
+};
+
+struct VertexInput {
+    @location(0) position: vec3<f32>,
+    @location(1) color: vec4<f32>,
+};
+
+@vertex
+fn vs_main(in: VertexInput) -> VertexOutput {
+    var out: VertexOutput;
+    out.position = camera.view_proj * vec4<f32>(in.position, 1.0);
+    out.color = in.color;
+    return out;
+}
+
+@fragment
+fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    return in.color;
+}
+"#;
+
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Vertex {
@@ -738,6 +771,290 @@ fn id_to_color(id: u32) -> [f32; 4] {
     let g = ((id >> 8) & 0xFF) as f32 / 255.0;
     let b = ((id >> 16) & 0xFF) as f32 / 255.0;
     [r, g, b, 1.0]
+}
+
+/// Create grid vertices on the XY plane (ground plane at Z=0, Z-up system)
+/// Always on XY plane regardless of view. X axis is red, Y axis is green.
+/// Returns vertices for drawing with triangle list (quads as two triangles)
+fn create_grid_vertices_xy(size: f32, unit: f32) -> Vec<Vertex> {
+    let mut vertices = Vec::new();
+
+    // Colors for Z-up system (adjusted for sRGB linear-to-display)
+    let minor_color = [0.08, 0.08, 0.08, 1.0];   // Minor lines: sRGB display ~30
+    let major_color = [0.18, 0.18, 0.18, 1.0];   // Major lines: sRGB display ~102
+    let x_axis_color = [1.0, 0.0, 0.0, 1.0];     // Red for X axis
+    let y_axis_color = [0.0, 1.0, 0.0, 1.0];     // Green for Y axis
+    let z_axis_color = [0.0, 0.0, 1.0, 1.0];     // Blue for Z axis
+
+    let line_width = 0.05;  // Half-width of line in world units
+    let eps = 0.0001;
+
+    // Lines parallel to X axis (constant Y, varying X) in XY plane at Z=0
+    let mut y = -size / 2.0;
+    while y <= size / 2.0 {
+        let color = if y.abs() < eps {
+            x_axis_color  // line along X at y=0 is the X axis (red)
+        } else if ((y / unit).round() as i32 % 10) == 0 {
+            major_color
+        } else {
+            minor_color
+        };
+
+        let v0 = Vertex { position: [-size / 2.0, y - line_width, 0.0], color };
+        let v1 = Vertex { position: [size / 2.0, y - line_width, 0.0], color };
+        let v2 = Vertex { position: [size / 2.0, y + line_width, 0.0], color };
+        let v3 = Vertex { position: [-size / 2.0, y + line_width, 0.0], color };
+
+        vertices.push(v0);
+        vertices.push(v1);
+        vertices.push(v2);
+        vertices.push(v0);
+        vertices.push(v2);
+        vertices.push(v3);
+
+        y += unit;
+    }
+
+    // Lines parallel to Y axis (constant X, varying Y) in XY plane at Z=0
+    let mut x = -size / 2.0;
+    while x <= size / 2.0 {
+        let color = if x.abs() < eps {
+            y_axis_color  // line along Y at x=0 is the Y axis (green)
+        } else if ((x / unit).round() as i32 % 10) == 0 {
+            major_color
+        } else {
+            minor_color
+        };
+
+        let v0 = Vertex { position: [x - line_width, -size / 2.0, 0.0], color };
+        let v1 = Vertex { position: [x + line_width, -size / 2.0, 0.0], color };
+        let v2 = Vertex { position: [x + line_width, size / 2.0, 0.0], color };
+        let v3 = Vertex { position: [x - line_width, size / 2.0, 0.0], color };
+
+        vertices.push(v0);
+        vertices.push(v1);
+        vertices.push(v2);
+        vertices.push(v0);
+        vertices.push(v2);
+        vertices.push(v3);
+
+        x += unit;
+    }
+
+    // Draw Z axis (blue line from origin upward, length 5 units)
+    // Two crossed quads (XZ and YZ planes) so the axis is visible from every view direction.
+    let z_axis_width = 0.1;
+    let z_length = 5.0;
+    for plane in 0..2 {
+        let p = |w: f32, z: f32| Vertex {
+            position: if plane == 0 { [w, 0.0, z] } else { [0.0, w, z] },
+            color: z_axis_color,
+        };
+        let (v0, v1, v2, v3) = (
+            p(-z_axis_width, 0.0),
+            p(z_axis_width, 0.0),
+            p(z_axis_width, z_length),
+            p(-z_axis_width, z_length),
+        );
+        vertices.extend_from_slice(&[v0, v1, v2, v0, v2, v3]);
+    }
+
+    vertices
+}
+
+/// Render a grid aligned to the camera view
+/// The grid has dark background, minor lines every unit, major lines every 10 units
+/// X axis is red, secondary axis (Y or Z) is green
+/// Grid always renders on XY plane at Z=0 (view_name unused but kept for API compatibility)
+pub fn render_grid(ctx: &GpuContext, target: &OffscreenTarget, camera: &Camera, _view_name: &str) -> Result<(), RenderError> {
+    let device = ctx.device();
+    let queue = ctx.queue();
+
+    // Get viewport size
+    let width = target.width;
+    let height = target.height;
+    let aspect = width as f32 / height as f32;
+
+    // Create shader module
+    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        label: Some("grid shader"),
+        source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(GRID_SHADER)),
+    });
+
+    // Create bind group layout for camera uniform
+    let camera_bind_group_layout = device.create_bind_group_layout(
+        &wgpu::BindGroupLayoutDescriptor {
+            label: Some("camera bind group layout"),
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+        },
+    );
+
+    // Create pipeline layout
+    let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+        label: Some("grid pipeline layout"),
+        bind_group_layouts: &[&camera_bind_group_layout],
+        push_constant_ranges: &[],
+    });
+
+    // Create render pipeline
+    let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("grid pipeline"),
+        layout: Some(&pipeline_layout),
+        vertex: wgpu::VertexState {
+            module: &shader,
+            entry_point: "vs_main",
+            buffers: &[wgpu::VertexBufferLayout {
+                array_stride: std::mem::size_of::<Vertex>() as u64,
+                step_mode: wgpu::VertexStepMode::Vertex,
+                attributes: &wgpu::vertex_attr_array![
+                    0 => Float32x3,
+                    1 => Float32x4
+                ],
+            }],
+        },
+        primitive: wgpu::PrimitiveState {
+            topology: wgpu::PrimitiveTopology::TriangleList,
+            strip_index_format: None,
+            front_face: wgpu::FrontFace::Ccw,
+            cull_mode: None,
+            unclipped_depth: false,
+            polygon_mode: wgpu::PolygonMode::Fill,
+            conservative: false,
+        },
+        depth_stencil: Some(wgpu::DepthStencilState {
+            format: TextureFormat::Depth32Float,
+            depth_write_enabled: true,
+            depth_compare: wgpu::CompareFunction::Less,
+            stencil: Default::default(),
+            bias: Default::default(),
+        }),
+        multisample: wgpu::MultisampleState {
+            count: target.sample_count,
+            mask: !0,
+            alpha_to_coverage_enabled: false,
+        },
+        fragment: Some(wgpu::FragmentState {
+            module: &shader,
+            entry_point: "fs_main",
+            targets: &[Some(wgpu::ColorTargetState {
+                format: TextureFormat::Rgba8UnormSrgb,
+                blend: Some(wgpu::BlendState {
+                    color: wgpu::BlendComponent {
+                        src_factor: wgpu::BlendFactor::SrcAlpha,
+                        dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+                        operation: wgpu::BlendOperation::Add,
+                    },
+                    alpha: wgpu::BlendComponent {
+                        src_factor: wgpu::BlendFactor::One,
+                        dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+                        operation: wgpu::BlendOperation::Add,
+                    },
+                }),
+                write_mask: wgpu::ColorWrites::ALL,
+            })],
+        }),
+        multiview: None,
+    });
+
+    // Create grid vertices (always on XY plane at Z=0)
+    let grid_size = 20.0;  // ±10 units in each direction
+    let grid_vertices = create_grid_vertices_xy(grid_size, 1.0);
+
+    if grid_vertices.is_empty() {
+        return Err(RenderError::DeviceCreationError("No grid vertices generated".to_string()));
+    }
+
+    let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("grid vertex buffer"),
+        contents: bytemuck::cast_slice(&grid_vertices),
+        usage: wgpu::BufferUsages::VERTEX,
+    });
+
+    // Create camera uniform buffer
+    #[repr(C)]
+    #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+    struct CameraUniform {
+        view_proj: [[f32; 4]; 4],
+    }
+
+    let vp_matrix = camera.view_projection_matrix(aspect);
+    let camera_uniform = CameraUniform {
+        view_proj: vp_matrix.to_cols_array_2d(),
+    };
+
+    let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("camera uniform buffer"),
+        contents: bytemuck::cast_slice(&[camera_uniform]),
+        usage: wgpu::BufferUsages::UNIFORM,
+    });
+
+    let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+        label: Some("camera bind group"),
+        layout: &camera_bind_group_layout,
+        entries: &[wgpu::BindGroupEntry {
+            binding: 0,
+            resource: camera_buffer.as_entire_binding(),
+        }],
+    });
+
+    // Create command encoder and render pass
+    let mut encoder = device.create_command_encoder(&Default::default());
+
+    // Get resolve target view if MSAA
+    let resolve_view = if target.sample_count > 1 {
+        Some(target.resolve_texture.create_view(&Default::default()))
+    } else {
+        None
+    };
+
+    {
+        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("grid render pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: target.render_view(),
+                resolve_target: resolve_view.as_ref(),
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color {
+                        r: 0.0013,  // Linear value that displays as sRGB ~30/255 in sRGB texture
+                        g: 0.0013,
+                        b: 0.0013,
+                        a: 1.0,
+                    }),
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: target.depth_view(),
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(1.0),
+                    store: wgpu::StoreOp::Store,
+                }),
+                stencil_ops: None,
+            }),
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
+
+        render_pass.set_pipeline(&pipeline);
+        render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
+        render_pass.set_bind_group(0, &camera_bind_group, &[]);
+
+        let vertex_count = grid_vertices.len() as u32;
+        render_pass.draw(0..vertex_count, 0..1);
+    }
+
+    queue.submit(std::iter::once(encoder.finish()));
+
+    Ok(())
 }
 
 /// Offscreen target with ID buffer for picking

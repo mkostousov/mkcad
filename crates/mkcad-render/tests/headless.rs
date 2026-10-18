@@ -1,4 +1,4 @@
-use mkcad_render::{GpuContext, OffscreenTarget, render_test_scene, save_png};
+use mkcad_render::{Camera, GpuContext, OffscreenTarget, render_grid, render_test_scene, save_png};
 
 #[tokio::test]
 async fn adapter_is_found() {
@@ -222,6 +222,7 @@ async fn msaa_edge() {
 
     // Anti-aliased edge pixels have an R value strictly between the clear colour (89) and the
     // triangle (255). Without MSAA the hard edge produces none; with 4x MSAA it must.
+    #[allow(clippy::chunks_exact_to_as_chunks)]
     let intermediate = |px: &[u8]| {
         px.chunks_exact(4)
             .filter(|p| p[0] > 100 && p[0] < 245 && p[1] < 130)
@@ -308,4 +309,290 @@ async fn determinism() {
     );
 
     println!("Determinism test passed: {} bytes rendered identically", pixels1.len());
+}
+
+#[tokio::test]
+async fn grid_visual_check() {
+    let ctx = match GpuContext::new_headless().await {
+        Ok(c) => c,
+        Err(_) => {
+            eprintln!("No GPU adapter found (test skipped)");
+            return;
+        }
+    };
+
+    let width = 256u32;
+    let height = 256u32;
+
+    let target = match OffscreenTarget::new(&ctx, width, height, 1) {
+        Ok(t) => t,
+        Err(e) => panic!("Failed to create offscreen target: {}", e),
+    };
+
+    // Create Top orthographic view
+    let camera = Camera::orthographic_view("top", glam::Vec3::ZERO, 20.0);
+
+    // Render grid
+    render_grid(&ctx, &target, &camera, "top").expect("Failed to render grid");
+
+    // Read pixels
+    let pixels = target.read_pixels(&ctx).expect("Failed to read pixels");
+
+    // Save to CARGO_TARGET_TMPDIR for inspection
+    let test_output_dir = std::path::PathBuf::from(env!("CARGO_TARGET_TMPDIR"));
+    std::fs::create_dir_all(&test_output_dir).expect("Failed to create test output directory");
+    let png_path = test_output_dir.join("grid_visual_top.png");
+    save_png(png_path.to_str().unwrap(), width, height, &pixels)
+        .expect("Failed to save PNG");
+    println!("Grid PNG written to: {}", png_path.display());
+
+    // Top ortho, 256 px for 20 world units: world origin at the image centre, X right, Y up.
+    let px = |x: usize, y: usize| {
+        let i = (y * width as usize + x) * 4;
+        (pixels[i] as i32, pixels[i + 1] as i32, pixels[i + 2] as i32)
+    };
+    let (w, h) = (width as usize, height as usize);
+
+    // X axis: red horizontal line through the centre row, on both sides of the origin.
+    for x in [30, 60, 200, 230] {
+        let (r, g, b) = px(x, h / 2);
+        assert!(r > 150 && g < 80 && b < 80, "X axis at x={x} should be red: {r},{g},{b}");
+    }
+    // Y axis: green vertical line through the centre column, above and below the origin.
+    // rows chosen between horizontal grid lines (lines every 12.8 px around row 128)
+    for y in [45, 58, 211, 224] {
+        let (r, g, b) = px(w / 2, y);
+        assert!(g > 150 && r < 80 && b < 80, "Y axis at y={y} should be green: {r},{g},{b}");
+    }
+    // Background corner pixel is dark (displays below 40/255 in every channel).
+    let (r, g, b) = px(2, 2);
+    assert!(r < 40 && g < 40 && b < 40, "background should be dark: {r},{g},{b}");
+
+    // Along a row that crosses no axis, grid lines are neutral grey, brighter than the
+    // background, with two distinct brightness levels (minor < major).
+    let row = 45usize;
+    let mut levels: Vec<i32> = Vec::new();
+    for x in (0..w).filter(|x| x.abs_diff(w / 2) > 2) {
+        let (r, g, b) = px(x, row);
+        if (r + g + b) / 3 > 40 {
+            assert!((r - g).abs() < 10 && (g - b).abs() < 10, "grid line not neutral at x={x}: {r},{g},{b}");
+            levels.push((r + g + b) / 3);
+        }
+    }
+    assert!(!levels.is_empty(), "no grid lines found on row {row}");
+    let (lo, hi) = (*levels.iter().min().unwrap(), *levels.iter().max().unwrap());
+    assert!(hi - lo >= 20, "expected distinct minor/major brightness, got {lo}..{hi}");
+}
+
+#[tokio::test]
+async fn grid_golden_top() {
+    let ctx = match GpuContext::new_headless().await {
+        Ok(c) => c,
+        Err(_) => {
+            eprintln!("No GPU adapter found (test skipped)");
+            return;
+        }
+    };
+
+    let width = 256u32;
+    let height = 256u32;
+
+    let target = match OffscreenTarget::new(&ctx, width, height, 1) {
+        Ok(t) => t,
+        Err(e) => panic!("Failed to create offscreen target: {}", e),
+    };
+
+    // Create Top orthographic view
+    let camera = Camera::orthographic_view("top", glam::Vec3::ZERO, 20.0);
+
+    // Render grid
+    render_grid(&ctx, &target, &camera, "top").expect("Failed to render grid");
+
+    // Read pixels
+    let pixels = target.read_pixels(&ctx).expect("Failed to read pixels");
+
+    // Get golden image path (in repo, not in target dir)
+    let golden_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests")
+        .join("golden")
+        .join("top.png");
+
+    let update_golden = std::env::var("MKCAD_UPDATE_GOLDEN")
+        .map(|v| v == "1")
+        .unwrap_or(false);
+
+    if update_golden {
+        // Write golden image
+        save_png(golden_path.to_str().unwrap(), width, height, &pixels)
+            .expect("Failed to save golden PNG");
+        println!("Golden image written to: {}", golden_path.display());
+    } else {
+        // Compare with golden image
+        if !golden_path.exists() {
+            panic!("Golden image not found: {}. Run with MKCAD_UPDATE_GOLDEN=1 to create it.", golden_path.display());
+        }
+
+        // Read golden image
+        let golden_file = std::fs::File::open(&golden_path).expect("Failed to open golden image");
+        let reader = std::io::BufReader::new(golden_file);
+        let decoder = png::Decoder::new(reader);
+        let mut reader = decoder.read_info().expect("Failed to read golden PNG");
+        let mut golden_pixels = vec![0u8; reader.output_buffer_size()];
+        reader.next_frame(&mut golden_pixels).expect("Failed to decode golden PNG");
+
+        // Compare pixel data with tolerance
+        const TOLERANCE: i32 = 2;
+        for (i, (actual, expected)) in pixels.iter().zip(golden_pixels.iter()).enumerate() {
+            let diff = (*actual as i32 - *expected as i32).abs();
+            assert!(
+                diff <= TOLERANCE,
+                "Pixel {} mismatch: actual={}, expected={}, diff={}",
+                i, actual, expected, diff
+            );
+        }
+
+        println!("Golden image comparison passed with tolerance={}", TOLERANCE);
+    }
+}
+
+#[tokio::test]
+async fn grid_golden_front() {
+    let ctx = match GpuContext::new_headless().await {
+        Ok(c) => c,
+        Err(_) => {
+            eprintln!("No GPU adapter found (test skipped)");
+            return;
+        }
+    };
+
+    let width = 256u32;
+    let height = 256u32;
+
+    let target = match OffscreenTarget::new(&ctx, width, height, 1) {
+        Ok(t) => t,
+        Err(e) => panic!("Failed to create offscreen target: {}", e),
+    };
+
+    // Create Front orthographic view
+    let camera = Camera::orthographic_view("front", glam::Vec3::ZERO, 20.0);
+
+    // Render grid
+    render_grid(&ctx, &target, &camera, "front").expect("Failed to render grid");
+
+    // Read pixels
+    let pixels = target.read_pixels(&ctx).expect("Failed to read pixels");
+
+    // Get golden image path (in repo, not in target dir)
+    let golden_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests")
+        .join("golden")
+        .join("front.png");
+
+    let update_golden = std::env::var("MKCAD_UPDATE_GOLDEN")
+        .map(|v| v == "1")
+        .unwrap_or(false);
+
+    if update_golden {
+        // Write golden image
+        save_png(golden_path.to_str().unwrap(), width, height, &pixels)
+            .expect("Failed to save golden PNG");
+        println!("Golden image written to: {}", golden_path.display());
+    } else {
+        // Compare with golden image
+        if !golden_path.exists() {
+            panic!("Golden image not found: {}. Run with MKCAD_UPDATE_GOLDEN=1 to create it.", golden_path.display());
+        }
+
+        // Read golden image
+        let golden_file = std::fs::File::open(&golden_path).expect("Failed to open golden image");
+        let reader = std::io::BufReader::new(golden_file);
+        let decoder = png::Decoder::new(reader);
+        let mut reader = decoder.read_info().expect("Failed to read golden PNG");
+        let mut golden_pixels = vec![0u8; reader.output_buffer_size()];
+        reader.next_frame(&mut golden_pixels).expect("Failed to decode golden PNG");
+
+        // Compare pixel data with tolerance
+        const TOLERANCE: i32 = 2;
+        for (i, (actual, expected)) in pixels.iter().zip(golden_pixels.iter()).enumerate() {
+            let diff = (*actual as i32 - *expected as i32).abs();
+            assert!(
+                diff <= TOLERANCE,
+                "Pixel {} mismatch: actual={}, expected={}, diff={}",
+                i, actual, expected, diff
+            );
+        }
+
+        println!("Golden image comparison passed with tolerance={}", TOLERANCE);
+    }
+}
+
+#[tokio::test]
+async fn grid_golden_iso() {
+    let ctx = match GpuContext::new_headless().await {
+        Ok(c) => c,
+        Err(_) => {
+            eprintln!("No GPU adapter found (test skipped)");
+            return;
+        }
+    };
+
+    let width = 256u32;
+    let height = 256u32;
+
+    let target = match OffscreenTarget::new(&ctx, width, height, 1) {
+        Ok(t) => t,
+        Err(e) => panic!("Failed to create offscreen target: {}", e),
+    };
+
+    // Create Iso orthographic view
+    let camera = Camera::orthographic_view("iso", glam::Vec3::ZERO, 20.0);
+
+    // Render grid
+    render_grid(&ctx, &target, &camera, "iso").expect("Failed to render grid");
+
+    // Read pixels
+    let pixels = target.read_pixels(&ctx).expect("Failed to read pixels");
+
+    // Get golden image path (in repo, not in target dir)
+    let golden_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests")
+        .join("golden")
+        .join("iso.png");
+
+    let update_golden = std::env::var("MKCAD_UPDATE_GOLDEN")
+        .map(|v| v == "1")
+        .unwrap_or(false);
+
+    if update_golden {
+        // Write golden image
+        save_png(golden_path.to_str().unwrap(), width, height, &pixels)
+            .expect("Failed to save golden PNG");
+        println!("Golden image written to: {}", golden_path.display());
+    } else {
+        // Compare with golden image
+        if !golden_path.exists() {
+            panic!("Golden image not found: {}. Run with MKCAD_UPDATE_GOLDEN=1 to create it.", golden_path.display());
+        }
+
+        // Read golden image
+        let golden_file = std::fs::File::open(&golden_path).expect("Failed to open golden image");
+        let reader = std::io::BufReader::new(golden_file);
+        let decoder = png::Decoder::new(reader);
+        let mut reader = decoder.read_info().expect("Failed to read golden PNG");
+        let mut golden_pixels = vec![0u8; reader.output_buffer_size()];
+        reader.next_frame(&mut golden_pixels).expect("Failed to decode golden PNG");
+
+        // Compare pixel data with tolerance
+        const TOLERANCE: i32 = 2;
+        for (i, (actual, expected)) in pixels.iter().zip(golden_pixels.iter()).enumerate() {
+            let diff = (*actual as i32 - *expected as i32).abs();
+            assert!(
+                diff <= TOLERANCE,
+                "Pixel {} mismatch: actual={}, expected={}, diff={}",
+                i, actual, expected, diff
+            );
+        }
+
+        println!("Golden image comparison passed with tolerance={}", TOLERANCE);
+    }
 }

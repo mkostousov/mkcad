@@ -1,4 +1,4 @@
-use glam::{Mat4, Vec3, Quat, Vec4Swizzles};
+use glam::{Mat4, Vec3, Vec4Swizzles};
 
 /// Camera projection mode
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -9,16 +9,16 @@ pub enum ProjectionMode {
     Orthographic(f32),
 }
 
-/// 3D Camera with orbit-style controls
+/// 3D Camera with orbit-style controls (Z-up coordinate system)
 #[derive(Debug, Clone)]
 pub struct Camera {
     /// The point the camera orbits around (world space)
     pub target: Vec3,
     /// Distance from target to camera
     pub distance: f32,
-    /// Yaw angle in radians (rotation around world Y axis)
+    /// Yaw angle in radians (rotation around world Z axis)
     pub yaw: f32,
-    /// Pitch angle in radians (rotation around camera-local X axis, clamped to [-π/2, π/2])
+    /// Pitch angle in radians (angle from XY plane, clamped to [-π/2, π/2])
     pub pitch: f32,
     /// Projection mode (perspective with fov or orthographic with half-height)
     pub projection: ProjectionMode,
@@ -42,21 +42,20 @@ impl Camera {
         pitch.max(-max_pitch).min(max_pitch)
     }
 
-    /// Get the camera position in world space
+    /// Get the camera position in world space (Z-up coordinate system)
+    /// Position is calculated as: target + [d*cos(pitch)*cos(yaw), d*cos(pitch)*sin(yaw), d*sin(pitch)]
+    /// Where pitch is angle from XY plane, yaw is rotation around Z axis
     pub fn position(&self) -> Vec3 {
-        // Start with camera pointing from origin
-        let mut pos = Vec3::new(0.0, 0.0, self.distance);
+        let cos_pitch = self.pitch.cos();
+        let sin_pitch = self.pitch.sin();
+        let cos_yaw = self.yaw.cos();
+        let sin_yaw = self.yaw.sin();
 
-        // Rotate by pitch (around X axis) - tip the camera up/down
-        let pitch_quat = Quat::from_axis_angle(Vec3::X, self.pitch);
-        pos = pitch_quat * pos;
-
-        // Rotate by yaw (around Y axis) - rotate the camera around the target
-        let yaw_quat = Quat::from_axis_angle(Vec3::Y, self.yaw);
-        pos = yaw_quat * pos;
-
-        // Translate to target
-        self.target + pos
+        self.target + Vec3::new(
+            self.distance * cos_pitch * cos_yaw,
+            self.distance * cos_pitch * sin_yaw,
+            self.distance * sin_pitch,
+        )
     }
 
     /// Get the forward direction (pointing from camera to target)
@@ -64,19 +63,30 @@ impl Camera {
         (self.target - self.position()).normalize()
     }
 
-    /// Get the right direction
-    pub fn right(&self) -> Vec3 {
-        self.forward().cross(Vec3::Y).normalize()
+    /// Get the up direction for this camera orientation (Z-up coordinate system)
+    /// When looking mostly along Z (pitch near ±π/2), use Y as screen-up; otherwise use world Z
+    pub fn up(&self) -> Vec3 {
+        let forward = self.forward();
+        // If looking mostly up or down along Z axis (top/bottom views)
+        if forward.z.abs() > 0.99 {
+            if forward.z > 0.0 {
+                Vec3::NEG_Y  // Looking up, use -Y as screen-up
+            } else {
+                Vec3::Y      // Looking down, use +Y as screen-up
+            }
+        } else {
+            Vec3::Z  // Normal case: world Z is screen-up
+        }
     }
 
-    /// Get the up direction (world up, not camera up)
-    pub fn up(&self) -> Vec3 {
-        Vec3::Y
+    /// Get the right direction (perpendicular to forward and up)
+    pub fn right(&self) -> Vec3 {
+        self.forward().cross(self.up()).normalize()
     }
 
     /// Get the view matrix
     pub fn view_matrix(&self) -> Mat4 {
-        Mat4::look_at_rh(self.position(), self.target, Vec3::Y)
+        Mat4::look_at_rh(self.position(), self.target, self.up())
     }
 
     /// Get the projection matrix
@@ -179,40 +189,49 @@ impl Camera {
         self.pitch = Self::clamp_pitch(self.pitch);
     }
 
-    /// Set camera to look normal to a plane
+    /// Set camera to look normal to a plane (Z-up coordinate system)
     /// origin: a point on the plane
     /// normal: the plane normal (will be normalized), camera forward will point along this direction
     pub fn look_normal_to_plane(&mut self, origin: Vec3, normal: Vec3) {
         let normal = normal.normalize();
 
-        // position = target + (d*cos(pitch)*sin(yaw), -d*sin(pitch), d*cos(pitch)*cos(yaw))
-        // forward = target - position = (-d*cos(pitch)*sin(yaw), d*sin(pitch), -d*cos(pitch)*cos(yaw))
+        // position = target + [d*cos(pitch)*cos(yaw), d*cos(pitch)*sin(yaw), d*sin(pitch)]
+        // forward = target - position = -[d*cos(pitch)*cos(yaw), d*cos(pitch)*sin(yaw), d*sin(pitch)] / d
+        //         = [-cos(pitch)*cos(yaw), -cos(pitch)*sin(yaw), -sin(pitch)]
         // We want forward = normal, so:
-        //   sin(pitch) = normal.y  =>  pitch = asin(normal.y)
-        //   -cos(pitch)*sin(yaw) = normal.x  =>  sin(yaw) = -normal.x / cos(pitch)
-        //   -cos(pitch)*cos(yaw) = normal.z  =>  cos(yaw) = -normal.z / cos(pitch)
-        // From the last two: yaw = atan2(-normal.x, -normal.z)
+        //   -sin(pitch) = normal.z  =>  pitch = asin(-normal.z)
+        //   -cos(pitch)*cos(yaw) = normal.x  =>  cos(yaw) = -normal.x / cos(pitch)
+        //   -cos(pitch)*sin(yaw) = normal.y  =>  sin(yaw) = -normal.y / cos(pitch)
+        // From the last two: yaw = atan2(-normal.y, -normal.x)
 
         self.target = origin;
-        self.pitch = normal.y.asin();
-        self.yaw = (-normal.x).atan2(-normal.z);
+        self.pitch = (-normal.z).asin();
+        self.yaw = (-normal.y).atan2(-normal.x);
     }
 
-    /// Create a named orthographic view
+    /// Create a named orthographic view (Z-up coordinate system)
+    /// Position formula: [d*cos(pitch)*cos(yaw), d*cos(pitch)*sin(yaw), d*sin(pitch)]
+    /// Top: yaw=any, pitch=π/2 → position (0,0,d) looking down -Z
+    /// Front: yaw=-π/2, pitch=0 → position (0,-d,0) looking along +Y
+    /// Back: yaw=π/2, pitch=0 → position (0,d,0) looking along -Y
+    /// Right: yaw=0, pitch=0 → position (d,0,0) looking along -X
+    /// Left: yaw=π, pitch=0 → position (-d,0,0) looking along +X
+    /// Bottom: yaw=any, pitch=-π/2 → position (0,0,-d) looking up +Z
+    /// Iso: yaw=-π/4, pitch=atan(√2) ≈ 0.615 → position (d/2,-d/2,d/√2)
     pub fn orthographic_view(name: &str, origin: Vec3, distance: f32) -> Self {
         let projection = ProjectionMode::Orthographic(distance / 2.0);
 
         match name.to_lowercase().as_str() {
-            "front" => Self::new(origin, distance, 0.0, 0.0, projection),
-            "back" => Self::new(origin, distance, std::f32::consts::PI, 0.0, projection),
-            "left" => Self::new(origin, distance, std::f32::consts::PI / 2.0, 0.0, projection),
-            "right" => Self::new(origin, distance, -std::f32::consts::PI / 2.0, 0.0, projection),
             "top" => Self::new(origin, distance, 0.0, std::f32::consts::PI / 2.0, projection),
             "bottom" => Self::new(origin, distance, 0.0, -std::f32::consts::PI / 2.0, projection),
+            "front" => Self::new(origin, distance, -std::f32::consts::PI / 2.0, 0.0, projection),
+            "back" => Self::new(origin, distance, std::f32::consts::PI / 2.0, 0.0, projection),
+            "right" => Self::new(origin, distance, 0.0, 0.0, projection),
+            "left" => Self::new(origin, distance, std::f32::consts::PI, 0.0, projection),
             "iso" => {
-                // Isometric: 45 degrees around and 35.264 degrees up
-                let yaw = -3.0 * std::f32::consts::PI / 4.0;
-                let pitch = (1.0_f32).atan();
+                // Isometric: yaw=-45°, pitch=atan(√2) to get position from (+X,-Y,+Z) direction
+                let yaw = -std::f32::consts::PI / 4.0;
+                let pitch = std::f32::consts::SQRT_2.atan();  // atan(√2) ≈ 0.615 rad ≈ 35.26°
                 Self::new(origin, distance, yaw, pitch, projection)
             }
             _ => panic!("Unknown view name: {}", name),
@@ -430,13 +449,13 @@ mod tests {
             assert_f32_approx_eq(camera.distance, distance, TOLERANCE);
         }
 
-        // Test specific view directions
+        // Test specific view directions (Z-up system)
         let front = Camera::orthographic_view("front", origin, distance);
-        assert_f32_approx_eq(front.yaw, 0.0, TOLERANCE);
+        assert_f32_approx_eq(front.yaw, -std::f32::consts::PI / 2.0, TOLERANCE);
         assert_f32_approx_eq(front.pitch, 0.0, TOLERANCE);
 
         let top = Camera::orthographic_view("top", origin, distance);
-        // Top view pitch is clamped to slightly less than π/2 to avoid gimbal lock
+        // Top view pitch is π/2 (clamped to slightly less to avoid gimbal lock)
         assert_f32_approx_eq(top.pitch, std::f32::consts::PI / 2.0 - 0.001, 1e-4);
     }
 
@@ -465,19 +484,45 @@ mod tests {
     }
 
     #[test]
-    fn test_camera_position() {
-        let camera = Camera::new(
+    fn test_vw_06_camera_basics() {
+        // Test basic camera positioning in Z-up system
+        // Front view: yaw=-π/2, pitch=0 should give position (0, -d, 0)
+        let front = Camera::new(
             Vec3::ZERO,
             10.0,
-            0.0,
+            -std::f32::consts::PI / 2.0,
             0.0,
             ProjectionMode::Perspective(45.0),
         );
+        assert_vec3_approx_eq(front.position(), Vec3::new(0.0, -10.0, 0.0), TOLERANCE);
+        assert_vec3_approx_eq(front.forward(), Vec3::new(0.0, 1.0, 0.0), 1e-4);
+        assert_vec3_approx_eq(front.right(), Vec3::new(1.0, 0.0, 0.0), 1e-4);
+        assert_vec3_approx_eq(front.up(), Vec3::new(0.0, 0.0, 1.0), 1e-4);
 
-        let pos = camera.position();
+        // Top view: yaw=0, pitch=π/2-ε should give position close to (0, 0, d)
+        let pitch_top = std::f32::consts::PI / 2.0 - 0.001;
+        let top = Camera::new(
+            Vec3::ZERO,
+            10.0,
+            0.0,
+            pitch_top,
+            ProjectionMode::Perspective(45.0),
+        );
+        // Position: [d*cos(pitch)*cos(yaw), d*cos(pitch)*sin(yaw), d*sin(pitch)]
+        // With pitch ≈ π/2, cos(pitch) ≈ 0.001, sin(pitch) ≈ 1
+        // So position ≈ (0.01, 0, 10)
+        let top_pos = top.position();
+        assert!(top_pos.x.abs() < 0.02, "Top X should be near 0, got {}", top_pos.x);
+        assert!(top_pos.y.abs() < 0.01, "Top Y should be near 0, got {}", top_pos.y);
+        assert!((top_pos.z - 10.0).abs() < 0.001, "Top Z should be near 10, got {}", top_pos.z);
 
-        // With yaw=0, pitch=0, distance=10, position should be at (0, 0, 10)
-        assert_vec3_approx_eq(pos, Vec3::new(0.0, 0.0, 10.0), TOLERANCE);
+        // forward should be close to (0, 0, -1) (looking down)
+        let top_forward = top.forward();
+        assert!(top_forward.z < -0.9, "Top view should look down, forward={:?}", top_forward);
+        // right should be close to (1, 0, 0)
+        let top_right = top.right();
+        assert!(top_right.x > 0.99, "Top right X should be ~1, got {}", top_right.x);
+        assert!(top_right.y.abs() < 0.01, "Top right Y should be ~0, got {}", top_right.y);
     }
 
     #[test]

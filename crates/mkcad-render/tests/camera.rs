@@ -141,7 +141,8 @@ fn test_vw_05_look_normal_to_plane() {
 
 #[test]
 fn test_vw_06_camera_basics() {
-    // VW-06: Camera math foundations
+    // VW-06: Camera math foundations (Z-up system)
+    // With yaw=0, pitch=0, position should be (d, 0, 0) looking at origin (looking in -X)
     let camera = Camera::new(
         Vec3::ZERO,
         10.0,
@@ -151,10 +152,26 @@ fn test_vw_06_camera_basics() {
     );
 
     let pos = camera.position();
-    assert_vec3_approx_eq(pos, Vec3::new(0.0, 0.0, 10.0), TOLERANCE, "VW-06: position");
+    // Formula: [d*cos(pitch)*cos(yaw), d*cos(pitch)*sin(yaw), d*sin(pitch)]
+    // With pitch=0, yaw=0: [10*1*1, 10*1*0, 10*0] = [10, 0, 0]
+    assert_vec3_approx_eq(pos, Vec3::new(10.0, 0.0, 0.0), TOLERANCE, "VW-06: position");
 
     let forward = camera.forward();
-    assert_vec3_approx_eq(forward, Vec3::new(0.0, 0.0, -1.0), TOLERANCE, "VW-06: forward");
+    // Camera at (10, 0, 0) looking at (0, 0, 0): forward = -(10,0,0).normalize() = (-1,0,0)
+    assert_vec3_approx_eq(forward, Vec3::new(-1.0, 0.0, 0.0), TOLERANCE, "VW-06: forward");
+
+    // Test Front view: yaw=-π/2, pitch=0 should be at (0, -d, 0) looking at origin
+    let front = Camera::new(
+        Vec3::ZERO,
+        10.0,
+        -std::f32::consts::PI / 2.0,
+        0.0,
+        ProjectionMode::Perspective(45.0),
+    );
+    let front_pos = front.position();
+    assert_vec3_approx_eq(front_pos, Vec3::new(0.0, -10.0, 0.0), TOLERANCE, "VW-06: front position");
+    let front_forward = front.forward();
+    assert_vec3_approx_eq(front_forward, Vec3::new(0.0, 1.0, 0.0), TOLERANCE, "VW-06: front forward");
 
     println!("VW-06: PASS");
 }
